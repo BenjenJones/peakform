@@ -23,7 +23,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: version
-        run: echo "version=$(grep '^version:' peakform/config.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(grep '^version:' peakform/config.yaml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -31,7 +33,7 @@ jobs:
           push: true
           # HA pulls the tag matching config.yaml's version.
           tags: |
-            ghcr.io/${{ github.repository_owner }}/peakform:${{ steps.version.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/peakform:latest
+            ghcr.io/${{ steps.version.outputs.owner }}/peakform:${{ steps.version.outputs.version }}
+            ghcr.io/${{ steps.version.outputs.owner }}/peakform:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
