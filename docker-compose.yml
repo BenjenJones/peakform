@@ -1,0 +1,20 @@
+# Standalone (non-Home Assistant) deployment.
+services:
+  peakform:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      MASTER_KEY_FILE: /run/secrets/master_key
+    secrets:
+      - master_key
+    volumes:
+      - ./data:/data
+
+secrets:
+  # Create with: openssl rand -base64 32 > master_key.txt  (keep it out of ./data and its backups)
+  master_key:
+    file: ./master_key.txt

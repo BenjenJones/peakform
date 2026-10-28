@@ -1,0 +1,22 @@
+name: PeakForm for Garmin
+version: "0.1.0"
+slug: peakform
+description: Health, recovery and training analytics for Garmin data (Personal API). Not affiliated with Garmin.
+url: https://github.com/OWNER/peakform
+arch:
+  - amd64
+  - aarch64
+# Multi-arch image built by .github/workflows/build.yml
+image: ghcr.io/owner/peakform
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:watch-variant
+panel_title: PeakForm
+options:
+  backfill_days: 365
+  sync_interval_minutes: 60
+schema:
+  # Optional. Empty: a key is generated in /data/master.key on first start.
+  master_key: password?
+  backfill_days: int(1,3650)
+  sync_interval_minutes: int(15,1440)

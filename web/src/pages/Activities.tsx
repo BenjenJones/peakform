@@ -1,0 +1,248 @@
+import { useCallback, useMemo, useState } from "react";
+import type { PageProps } from "../App";
+import { type ActivityLite, daysAgo, fmtCurveDuration, fmtDuration, fmtPace, type Streams, useApi } from "../api";
+import { base, Chart, line, type Tokens } from "../Chart";
+import { fmtDate, fmtNum, type Key, useI18n } from "../i18n";
+import { RouteMap } from "../RouteMap";
+import { CardTitle, Info } from "../ui";
+
+/** "2026-10-20T07:00:00" (local time from Garmin) -> "20.10.2026 07:00" */
+const fmtStart = (s: string) => `${fmtDate(s)} ${s.slice(11, 16)}`;
+
+interface Detail {
+  id: number; name: string; type: string; start: string; fitStatus: string; fitError: string | null;
+  summary: Record<string, unknown>;
+  detail: { laps?: Record<string, number>[] } | null;
+  streams: Streams | null;
+  curves: Record<"power" | "speed" | "hr", { durationS: number; value: number }[]> | null;
+  decouplingPct: number | null;
+}
+
+export function Activities({ range, refreshKey, selectedId }: PageProps & { selectedId: number | null }) {
+  const { t, sport } = useI18n();
+  const { data: acts } = useApi<ActivityLite[]>(`activities?from=${daysAgo(range)}`, [refreshKey]);
+  const [filter, setFilter] = useState("");
+  const types = useMemo(() => [...new Set(acts?.map((a) => a.type))].sort(), [acts]);
+  const shown = acts?.filter((a) => !filter || a.type === filter);
+
+  if (selectedId) return <ActivityDetail id={selectedId} />;
+
+  return (
+    <div className="grid">
+      <div className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+          <div>
+            <CardTitle title={t("activities.title")} sub={t("activities.inRange", { n: shown?.length ?? 0 })} />
+          </div>
+          <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label={t("activities.sport")}>
+            <option value="">{t("training.allSports")}</option>
+            {types.map((ty) => (
+              <option key={ty} value={ty}>
+                {sport(ty)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{t("activities.date")}</th><th>{t("activities.name")}</th><th>{t("activities.sport")}</th>
+                <th className="num">{t("activities.time")}</th><th className="num">{t("activities.distance")}</th><th className="num">{t("activities.avgHr")}</th>
+                <th className="num">{t("activities.avgW")}</th><th className="num">{t("activities.elev")}</th>
+                <th className="num">{t("activities.load")}<Info help="help.load" /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown?.map((a) => (
+                <tr key={a.id} className="click" onClick={() => (location.hash = `#/activities/${a.id}`)}>
+                  <td>{fmtStart(a.start)}</td>
+                  <td>{a.name}</td>
+                  <td className="muted">{sport(a.type)}</td>
+                  <td className="num">{fmtDuration(a.durationS)}</td>
+                  <td className="num">{a.distanceM ? fmtNum(a.distanceM / 1000, 2) + " km" : ""}</td>
+                  <td className="num">{a.avgHr ? Math.round(a.avgHr) : ""}</td>
+                  <td className="num">{a.avgPower ? Math.round(a.avgPower) : ""}</td>
+                  <td className="num">{a.elevGainM ? Math.round(a.elevGainM) + " m" : ""}</td>
+                  <td className="num" title={a.loadSource}>{a.load ? Math.round(a.load) : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Downsample streams for plotting; per-second data for multi-hour rides is too dense. */
+function thin(s: Streams, target = 2000) {
+  const step = Math.max(1, Math.floor(s.t.length / target));
+  const idx = s.t.map((_, i) => i).filter((i) => i % step === 0);
+  const pick = <T,>(a: T[]) => idx.map((i) => a[i]);
+  return { t: pick(s.t), hr: pick(s.hr), power: pick(s.power), speed: pick(s.speed), alt: pick(s.alt), cadence: pick(s.cadence) };
+}
+
+function ActivityDetail({ id }: { id: number }) {
+  const { t: tr, lang, sport } = useI18n();
+  const { data: a, error } = useApi<Detail>(`activities/${id}`);
+  const [hoverT, setHoverT] = useState<number | null>(null);
+  const thinned = useMemo(() => (a?.streams ? thin(a.streams) : null), [a]);
+
+  const streamChart = useCallback(
+    (key: "hr" | "power" | "speed" | "alt" | "cadence", name: string, colorKey: keyof Tokens, fmt?: (v: number) => string) =>
+      (t: Tokens) => {
+        const b = base(t);
+        return {
+          ...b,
+          grid: { ...(b.grid as object), top: 8, bottom: 24 },
+          legend: { show: false },
+          tooltip: { ...(b.tooltip as object), valueFormatter: (v: unknown) => (fmt ? fmt(Number(v)) : fmtNum(Number(v))) },
+          xAxis: {
+            ...(b.xAxis as object),
+            type: "value" as const,
+            max: "dataMax",
+            axisLabel: { color: t.muted, formatter: (v: number) => fmtDuration(v) },
+            // Also formats the tooltip header (elapsed time instead of raw seconds).
+            axisPointer: { label: { formatter: ({ value }: { value: number }) => fmtDuration(value) } },
+          },
+          yAxis: { ...(b.yAxis as object), type: "value" as const, axisLabel: { color: t.muted, formatter: fmt ? (v: number) => fmt(v).replace(" /km", "") : undefined } },
+          series: [line(name, thinned!.t.map((x, i) => [x, thinned![key][i]]), t[colorKey], { sampling: "lttb" })],
+        };
+      },
+    [thinned],
+  );
+
+  const charts = useMemo(() => {
+    if (!thinned) return [];
+    const has = (k: keyof typeof thinned) => thinned[k].some((v) => (v ?? 0) > 0);
+    const out: { title: string; option: (t: Tokens) => object }[] = [];
+    if (has("hr")) out.push({ title: tr("activities.hrChart"), option: streamChart("hr", tr("training.hr"), "s2") });
+    if (has("power")) out.push({ title: tr("activities.powerChart"), option: streamChart("power", tr("training.power"), "s1") });
+    if (has("speed")) out.push({ title: tr("activities.paceChart"), option: streamChart("speed", tr("activities.pace"), "s3", fmtPace) });
+    if (has("alt")) out.push({ title: tr("activities.elevChart"), option: streamChart("alt", tr("activities.alt"), "s4") });
+    return out;
+  }, [thinned, streamChart, lang]);
+
+  const curveField = a?.curves?.power.length ? "power" : a?.curves?.speed.length ? "speed" : "hr";
+  const curveOpt = useCallback(
+    (t: Tokens) => {
+      const b = base(t);
+      const fmt = (v: number) => (curveField === "speed" ? fmtPace(v) : fmtNum(v));
+      return {
+        ...b,
+        legend: { show: false },
+        tooltip: { ...(b.tooltip as object), valueFormatter: (v: unknown) => fmt(Number(v)) },
+        xAxis: { ...(b.xAxis as object), type: "category" as const, boundaryGap: false },
+        yAxis: { ...(b.yAxis as object), type: "value" as const },
+        series: [line(tr(`training.${curveField}`), a?.curves?.[curveField].map((p) => [fmtCurveDuration(p.durationS), p.value]) ?? [], t.s1, { showSymbol: true })],
+      };
+    },
+    [a, curveField, lang],
+  );
+
+  if (error) return <div className="card">{error}</div>;
+  if (!a) return <div className="empty">{tr("common.loading")}</div>;
+  const s = a.summary as Record<string, number>;
+
+  return (
+    <div className="grid">
+      <div className="card">
+        <a href="#/activities" className="muted">{tr("activities.back")}</a>
+        <h2 style={{ fontSize: 18, marginTop: 6 }}>{a.name}</h2>
+        <p className="sub">{fmtStart(a.start)} · {sport(a.type ?? "")}</p>
+        <div className="tiles">
+          <Tile label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} />
+          {s.distance ? <Tile label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" /> : null}
+          {s.averageHR ? <Tile label={tr("activities.avgHr")} value={fmtNum(s.averageHR)} unit="bpm" /> : null}
+          {s.avgPower ? <Tile label={tr("activities.avgPower")} value={fmtNum(s.avgPower)} unit="W" /> : null}
+          {s.normPower ? <Tile label={tr("activities.np")} value={fmtNum(s.normPower)} unit="W" help="help.np" /> : null}
+          {s.elevationGain ? <Tile label={tr("activities.elev")} value={fmtNum(s.elevationGain)} unit="m" /> : null}
+          {a.decouplingPct != null ? (
+            <Tile
+              label={tr("activities.decoupling")}
+              value={fmtNum(a.decouplingPct, 1)}
+              unit="%"
+              hint={a.decouplingPct < 5 ? tr("activities.steady") : tr("activities.drifted")}
+              help="help.decoupling"
+            />
+          ) : null}
+          {s.aerobicTrainingEffect ? <Tile label={tr("activities.aerobicTe")} value={fmtNum(s.aerobicTrainingEffect, 1)} help="help.aerobic_te" /> : null}
+          {s.activityTrainingLoad ? <Tile label={tr("activities.load")} value={fmtNum(s.activityTrainingLoad)} help="help.load" /> : null}
+        </div>
+      </div>
+
+      {a.fitStatus !== "ok" && (
+        <div className="card">
+          {tr("activities.fitStatus", { status: a.fitStatus, error: a.fitError ? `: ${a.fitError}` : "" })}
+        </div>
+      )}
+
+      {a.streams && a.streams.lat.some((v) => v !== null) && (
+        <div className="card span-4 route-card">
+          <h2>{tr("activities.route")}</h2>
+          <RouteMap streams={a.streams} hoverT={hoverT} />
+        </div>
+      )}
+
+      <div className={`card ${a.streams?.lat.some((v) => v !== null) ? "span-8" : ""}`}>
+        {charts.map((c) => (
+          <div key={c.title}>
+            <h2>{c.title}</h2>
+            <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} />
+          </div>
+        ))}
+        {!charts.length && <div className="empty">{tr("activities.noStreams")}</div>}
+      </div>
+
+      {!!a.curves?.[curveField].length && (
+        <div className="card span-6">
+          <CardTitle title={`${tr("activities.curve")} (${tr(`training.${curveField}`)})`} sub={tr("activities.curveSub")} help="help.meanmax" />
+          <Chart option={curveOpt} height={220} />
+        </div>
+      )}
+
+      {!!a.detail?.laps?.length && (
+        <div className="card span-6 scroll">
+          <h2>{tr("activities.laps")}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th><th className="num">{tr("activities.time")}</th><th className="num">km</th><th className="num">{tr("activities.avgHr")}</th>
+                <th className="num">{tr("activities.avgW")}</th><th className="num">{tr("activities.pace")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {a.detail.laps.map((l, i) => (
+                <tr key={i}>
+                  <td>{i + 1}</td>
+                  <td className="num">{fmtDuration(l.totalTimerTime ?? 0)}</td>
+                  <td className="num">{l.totalDistance ? fmtNum(l.totalDistance / 1000, 2) : ""}</td>
+                  <td className="num">{l.avgHeartRate ?? ""}</td>
+                  <td className="num">{l.avgPower ?? ""}</td>
+                  <td className="num">{l.enhancedAvgSpeed ? fmtPace(l.enhancedAvgSpeed) : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Tile({ label, value, unit, hint, help }: { label: string; value: string | number; unit?: string; hint?: string; help?: Key }) {
+  return (
+    <div className="tile">
+      <div className="label">
+        {label}
+        {help && <Info help={help} />}
+      </div>
+      <div className="value">
+        {value}
+        {unit && <span className="unit">{unit}</span>}
+      </div>
+      {hint && <div className="delta">{hint}</div>}
+    </div>
+  );
+}
