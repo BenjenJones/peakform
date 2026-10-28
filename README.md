@@ -87,3 +87,7 @@ background sync working without users being signed in.
 PeakForm is an independent project. It is not affiliated with, endorsed by or sponsored by
 Garmin Ltd. or its subsidiaries. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its
 subsidiaries, used here only to describe compatibility.
+
+## License
+
+[MIT](LICENSE)
