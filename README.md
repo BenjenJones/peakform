@@ -19,8 +19,8 @@ Garmin Personal API ──(pull, hourly)──▶ sync ──▶ SQLite (/data) 
   field into `daily_metric(date, metric, value)`, e.g. `hrv.lastNightAvg`. Curated dashboard metrics
   (`rhr`, `hrv_night`, `sleep_score`, …) resolve to the first candidate path with data. The **Data**
   tab shows the mapping and raw payloads, so when a field name is wrong, fix the candidates list.
-- **Activities**: summaries via the search endpoint, plus the original FIT file, decoded with
-  `@garmin/fitsdk` into per-second streams (HR, power, speed, altitude, GPS).
+- **Activities**: summaries via the search endpoint, plus the original FIT file, decoded by a small
+  built-in parser (`server/garmin/fit.ts`) into per-second streams (HR, power, speed, altitude, GPS).
 - **Analytics** (`server/analytics.ts`): CTL/ATL/TSB from Garmin training load (falls back to
   Banister TRIMP), acute:chronic ratio, mean-max curves, aerobic decoupling, lagged correlation
   matrix, and a 0–100 readiness score from z-scores against a 60-day personal baseline.
@@ -91,3 +91,6 @@ subsidiaries, used here only to describe compatibility.
 ## License
 
 [MIT](LICENSE)
+
+Third-party licenses of everything shipped in the image are collected at build time
+(`scripts/notices.mjs`) into `THIRD_PARTY_NOTICES.txt`, served next to the web app.

@@ -11,13 +11,12 @@
     "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "tsx watch --env-file-if-exists=.env server/index.ts",
     "dev:web": "vite",
-    "build": "vite build && tsc -p server/tsconfig.json",
+    "build": "vite build && tsc -p server/tsconfig.json && node scripts/notices.mjs",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning dist/server/index.js",
     "sync": "tsx --env-file-if-exists=.env server/cli.ts",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@garmin/fitsdk": "^21.171.0",
     "@hono/node-server": "^1.14.0",
     "fflate": "^0.8.2",
     "hono": "^4.7.0"
