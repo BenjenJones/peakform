@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # HA shows peakform/CHANGELOG.md; the root copy is the one people edit.
+      - name: Changelog copies in sync
+        run: cmp CHANGELOG.md peakform/CHANGELOG.md || { echo "::error::Run npm run changelog"; exit 1; }
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3

@@ -1,6 +1,6 @@
 {
   "name": "peakform",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,7 @@
     "build": "vite build && tsc -p server/tsconfig.json && node scripts/notices.mjs",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning dist/server/index.js",
     "sync": "tsx --env-file-if-exists=.env server/cli.ts",
+    "changelog": "node -e \"require('node:fs').copyFileSync('CHANGELOG.md', 'peakform/CHANGELOG.md')\"",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
   },
   "dependencies": {

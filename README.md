@@ -36,6 +36,15 @@ npm run sync -- alice  # one-off sync for one user from the terminal
 
 Requires Node ≥ 24 (uses built-in `node:sqlite`).
 
+## Releasing
+
+1. Add a section to [CHANGELOG.md](CHANGELOG.md) and run `npm run changelog`. This copies it to
+   `peakform/CHANGELOG.md`, which Home Assistant shows in the app store and update dialog. CI
+   fails if the two differ.
+2. Bump `version` in `peakform/config.yaml` (HA only offers an update when it changes) and
+   `package.json`.
+3. Push to `main`; the workflow publishes `ghcr.io/<owner>/peakform:<version>`.
+
 ## Home Assistant
 
 1. Push this repo to GitHub, replace `OWNER` in `repository.yaml` and
