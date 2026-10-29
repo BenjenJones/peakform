@@ -1,14 +1,9 @@
 import { useCallback } from "react";
 import type { PageProps } from "../App";
-import { type ActivityLite, daysAgo, fmtDuration, type LoadDay, type Point, type SeriesMap, useApi } from "../api";
+import { type ActivityLite, daysAgo, fmtDuration, type LoadDay, type Point, type Readiness, type SeriesMap, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, useI18n } from "../i18n";
 import { CardTitle, Info } from "../ui";
-
-interface Readiness {
-  score: number | null;
-  parts: { key: string; today: number; baseline: number; z: number }[];
-}
 
 const TILE_KEYS: { key: string; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
   { key: "hrv_night", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },

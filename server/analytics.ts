@@ -241,7 +241,7 @@ export function paired(uid: number, x: string, y: string, from: string, to: stri
 }
 
 export const INSIGHT_METRICS = [
-  ...Object.keys(CURATED).filter((k) => !k.startsWith("hrv_base")),
+  ...Object.keys(CURATED).filter((k) => !k.startsWith("hrv_base") && !CURATED[k].detail),
   "load.load",
   "load.tsb",
   "load.atl",
@@ -290,4 +290,57 @@ export function readiness(uid: number, date: string) {
   if (!parts.length) return { date, score: null, parts };
   const z = mean(parts.map((p) => Math.max(-2.5, Math.min(2.5, p.z))));
   return { date, score: Math.round(50 + z * 20), parts };
+}
+
+// ---------- Day ----------
+
+const DAY_METRICS = [
+  "hrv_night", "hrv_weekly", "hrv_base_low", "hrv_base_high", "rhr", "sleep_score", "sleep_hours", "sleep_need_hours",
+  "deep_sleep_hours", "light_sleep_hours", "rem_sleep_hours", "awake_hours", "sleep_hr", "sleep_stress", "sleep_resp",
+  "spo2_avg", "stress_avg", "stress_rest_hours", "stress_low_hours", "stress_medium_hours", "stress_high_hours",
+  "bb_high", "bb_low", "bb_charged", "bb_drained", "steps", "steps_goal", "distance_km", "floors", "calories_total",
+  "calories_active", "intensity_moderate", "intensity_vigorous", "intensity_goal", "hr_max", "weight",
+];
+
+export interface DayMetric {
+  value: number | null;
+  /** Mean of the 7 days before. */
+  avg7: number | null;
+  /** The 60 days before, once at least 14 of them have data. */
+  baseline: { mean: number; sd: number } | null;
+  /** Last 14 days up to and including the day. */
+  trend: Series;
+}
+
+/** Everything the day dashboard shows for one calendar day. */
+export function daySummary(uid: number, date: string) {
+  const trendFrom = addDays(date, -13);
+  const metrics: Record<string, DayMetric> = {};
+  for (const key of DAY_METRICS) {
+    const s = metricSeries(uid, key, addDays(date, -60), date);
+    const before = s.filter((p) => p.date < date).map((p) => p.value);
+    const week = s.filter((p) => p.date < date && p.date >= addDays(date, -7)).map((p) => p.value);
+    metrics[key] = {
+      value: s.find((p) => p.date === date)?.value ?? null,
+      avg7: week.length ? mean(week) : null,
+      baseline: before.length >= 14 ? { mean: mean(before), sd: sd(before) } : null,
+      trend: s.filter((p) => p.date >= trendFrom),
+    };
+  }
+  // Garmin's intensity goal is per Monday-to-Sunday week, and vigorous minutes count double.
+  const monday = addDays(date, -((new Date(date + "T00:00:00Z").getUTCDay() + 6) % 7));
+  const weekSum = (key: string) => metrics[key].trend.filter((p) => p.date >= monday).reduce((a, p) => a + p.value, 0);
+  const span = db.prepare("SELECT min(date) AS first, max(date) AS last FROM daily_metric WHERE user_id = ?").get(uid) as {
+    first: string | null;
+    last: string | null;
+  };
+  return {
+    date,
+    ...span,
+    metrics,
+    intensityWeek: weekSum("intensity_moderate") + 2 * weekSum("intensity_vigorous"),
+    readiness: readiness(uid, date),
+    load: trainingLoad(uid, trendFrom, date),
+    activities: listActivities(uid, date, date).reverse(),
+  };
 }

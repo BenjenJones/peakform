@@ -75,7 +75,7 @@ export function rebuildDailyMetrics(uid: number) {
  * candidate of each is confirmed against real Personal API payloads (Oct 2026);
  * later ones are fallbacks guessed from Garmin Connect's web payloads.
  */
-export const CURATED: Record<string, { label: string; unit: string; candidates: string[] }> = {
+export const CURATED: Record<string, { label: string; unit: string; candidates: string[]; detail?: boolean }> = {
   rhr: {
     label: "Resting HR",
     unit: "bpm",
@@ -123,9 +123,46 @@ export const CURATED: Record<string, { label: string; unit: string; candidates: 
   steps: { label: "Steps", unit: "", candidates: ["steps.totalSteps", "daily_summaries.movement.steps.value"] },
   // Last weigh-in of the day; dailyWeightSummaries[].latestWeight
   weight: { label: "Weight", unit: "kg", candidates: ["weight.latestWeight.weight"] },
+
+  // Day dashboard details, confirmed Oct 2026. `detail` keeps them out of the correlation matrix.
+  steps_goal: { label: "Step goal", unit: "", candidates: ["daily_summaries.movement.steps.goal", "steps.stepGoal"], detail: true },
+  distance_km: { label: "Distance", unit: "km", candidates: ["daily_summaries.movement.steps.distanceInMeters", "steps.totalDistance"], detail: true },
+  floors: { label: "Floors climbed", unit: "", candidates: ["daily_summaries.movement.floorsAscended.value"], detail: true },
+  calories_total: { label: "Calories burned", unit: "kcal", candidates: ["daily_summaries.calories.burnedTotal"], detail: true },
+  calories_active: { label: "Active calories", unit: "kcal", candidates: ["daily_summaries.calories.burnedActive"], detail: true },
+  intensity_moderate: { label: "Moderate intensity", unit: "min", candidates: ["daily_summaries.intensityMinutes.moderate"], detail: true },
+  intensity_vigorous: { label: "Vigorous intensity", unit: "min", candidates: ["daily_summaries.intensityMinutes.vigorous"], detail: true },
+  // Weekly goal, repeated on every day.
+  intensity_goal: { label: "Intensity minutes goal", unit: "min", candidates: ["daily_summaries.intensityMinutes.goal"], detail: true },
+  hr_max: { label: "Max HR (day)", unit: "bpm", candidates: ["daily_summaries.heartRate.maxValue"], detail: true },
+  sleep_hr: { label: "Sleep HR", unit: "bpm", candidates: ["sleep_summaries.avgHeartRate"], detail: true },
+  sleep_stress: { label: "Sleep stress", unit: "", candidates: ["sleep_summaries.avgSleepStress"], detail: true },
+  sleep_resp: { label: "Sleep respiration", unit: "brpm", candidates: ["sleep_summaries.averageRespirationValue"], detail: true },
+  spo2_avg: { label: "SpO2 (sleep avg)", unit: "%", candidates: ["sleep_summaries.averageSpO2Value", "daily_summaries.pulseOx.avgValue"], detail: true },
+  // Garmin's sleep need for that night, adjusted for recent load and sleep debt.
+  sleep_need_hours: { label: "Sleep need", unit: "h", candidates: ["sleep_summaries.sleepNeed.actual"], detail: true },
+  bb_charged: { label: "Body Battery charged", unit: "", candidates: ["daily_summaries.bodyBattery.chargedValue", "body_battery.charged"], detail: true },
+  bb_drained: { label: "Body Battery drained", unit: "", candidates: ["daily_summaries.bodyBattery.drainedValue", "body_battery.drained"], detail: true },
+  stress_rest_hours: { label: "Rest", unit: "h", candidates: ["daily_summaries.stress.restDurationInMillis"], detail: true },
+  stress_low_hours: { label: "Low stress", unit: "h", candidates: ["daily_summaries.stress.lowStressDurationInMillis"], detail: true },
+  stress_medium_hours: { label: "Medium stress", unit: "h", candidates: ["daily_summaries.stress.mediumStressDurationInMillis"], detail: true },
+  stress_high_hours: { label: "High stress", unit: "h", candidates: ["daily_summaries.stress.highStressDurationInMillis"], detail: true },
 };
 
-const SECONDS_TO_HOURS = new Set(["sleep_hours", "deep_sleep_hours", "rem_sleep_hours", "light_sleep_hours", "awake_hours"]);
+// Raw unit -> display unit, e.g. seconds -> hours.
+const DIVISOR: Record<string, number> = {
+  sleep_hours: 3600,
+  deep_sleep_hours: 3600,
+  rem_sleep_hours: 3600,
+  light_sleep_hours: 3600,
+  awake_hours: 3600,
+  sleep_need_hours: 60,
+  distance_km: 1000,
+  stress_rest_hours: 3_600_000,
+  stress_low_hours: 3_600_000,
+  stress_medium_hours: 3_600_000,
+  stress_high_hours: 3_600_000,
+};
 
 export function resolveCurated(uid: number, key: string): string | null {
   const def = CURATED[key];
@@ -143,7 +180,8 @@ export function metricSeries(uid: number, keyOrPath: string, from: string, to: s
   let rows = db
     .prepare("SELECT date, value FROM daily_metric WHERE user_id = ? AND metric = ? AND date BETWEEN ? AND ? ORDER BY date")
     .all(uid, path, from, to) as Series;
-  if (SECONDS_TO_HOURS.has(keyOrPath)) rows = rows.map((r) => ({ date: r.date, value: r.value / 3600 }));
+  const div = DIVISOR[keyOrPath];
+  if (div) rows = rows.map((r) => ({ date: r.date, value: r.value / div }));
   // Weight is reported in grams by Connect.
   if (keyOrPath === "weight") rows = rows.map((r) => ({ date: r.date, value: r.value > 1000 ? r.value / 1000 : r.value }));
   return rows;

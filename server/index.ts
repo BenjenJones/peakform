@@ -8,6 +8,7 @@ import {
   activityStreams,
   bestCurve,
   correlationMatrix,
+  daySummary,
   decoupling,
   INSIGHT_METRICS,
   listActivities,
@@ -170,6 +171,12 @@ api.get("/series", (c) => {
 api.get("/load", (c) => c.json(trainingLoad(c.get("user").id, c.req.query("from") ?? daysAgo(180), c.req.query("to") ?? today())));
 
 api.get("/readiness", (c) => c.json(readiness(c.get("user").id, c.req.query("date") ?? today())));
+
+api.get("/day", (c) => {
+  const date = c.req.query("date") ?? today();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  return c.json(daySummary(c.get("user").id, date));
+});
 
 api.get("/activities", (c) => c.json(listActivities(c.get("user").id, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today())));
 

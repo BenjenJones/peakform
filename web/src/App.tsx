@@ -4,6 +4,7 @@ import { I18nProvider, type Key, type Lang, useI18n } from "./i18n";
 import { Account } from "./pages/Account";
 import { Activities } from "./pages/Activities";
 import { Data } from "./pages/Data";
+import { Day } from "./pages/Day";
 import { Insights } from "./pages/Insights";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
@@ -11,7 +12,7 @@ import { Recovery } from "./pages/Recovery";
 import { Training } from "./pages/Training";
 
 // Hash routing: no server-side route knowledge needed behind the ingress proxy.
-const TABS = ["overview", "recovery", "training", "activities", "insights", "data", "account"] as const;
+const TABS = ["overview", "day", "recovery", "training", "activities", "insights", "data", "account"] as const;
 
 export interface Status {
   configured: boolean;
@@ -122,6 +123,7 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
       )}
 
       {active === "overview" && <Overview {...props} />}
+      {active === "day" && <Day {...props} date={rest[0] ?? null} />}
       {active === "recovery" && <Recovery {...props} />}
       {active === "training" && <Training {...props} />}
       {active === "activities" && <Activities {...props} selectedId={rest[0] ? Number(rest[0]) : null} />}

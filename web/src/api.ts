@@ -65,6 +65,29 @@ export interface ActivityLite {
   avgPower: number | null; elevGainM: number | null; load: number; loadSource: string;
 }
 
+export interface Readiness {
+  score: number | null;
+  parts: { key: string; today: number; baseline: number; z: number }[];
+}
+
+export interface DayMetric {
+  value: number | null;
+  avg7: number | null;
+  baseline: { mean: number; sd: number } | null;
+  trend: Point[];
+}
+
+export interface DayData {
+  date: string;
+  first: string | null;
+  last: string | null;
+  metrics: Record<string, DayMetric>;
+  intensityWeek: number;
+  readiness: Readiness;
+  load: LoadDay[];
+  activities: ActivityLite[];
+}
+
 export interface Streams {
   t: number[]; hr: (number | null)[]; power: (number | null)[]; speed: (number | null)[];
   cadence: (number | null)[]; alt: (number | null)[]; dist: (number | null)[];
