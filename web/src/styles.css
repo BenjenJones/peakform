@@ -125,6 +125,8 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 .findings { margin: 0; padding-left: 18px; }
 .findings li { margin: 4px 0; cursor: pointer; }
 .findings li:hover { text-decoration: underline; }
+.compare-pick { margin-bottom: 12px; font-size: 13px; color: var(--ink-2); }
+.compare-pick select { max-width: 100%; min-width: 0; flex: 1 1 240px; }
 .tiles.three { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 600px) { .tiles.three { grid-template-columns: repeat(2, 1fr); } }
 
@@ -202,6 +204,9 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 .route-start { stroke: var(--surface); fill: var(--good); }
 .route-end { stroke: var(--surface); fill: var(--critical); }
 .route-hover { stroke: var(--surface); fill: var(--s2); }
+.route-line.b { stroke: var(--s2); stroke-dasharray: 6 5; }
+.route-hover-a { stroke: var(--surface); fill: var(--s1); }
+.route-hover-b { stroke: var(--surface); fill: var(--s2); }
 /* Dark mode: invert the light OSM tiles instead of loading a second tile set. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .route-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85); }

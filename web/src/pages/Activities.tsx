@@ -5,6 +5,7 @@ import { base, Chart, line, type Tokens } from "../Chart";
 import { fmtDate, fmtNum, type Key, useI18n } from "../i18n";
 import { RouteMap } from "../RouteMap";
 import { CardTitle, Info } from "../ui";
+import { Compare, ComparePicker } from "./Compare";
 
 /** "2026-10-20T07:00:00" (local time from Garmin) -> "20.10.2026 07:00" */
 const fmtStart = (s: string) => `${fmtDate(s)} ${s.slice(11, 16)}`;
@@ -18,13 +19,14 @@ interface Detail {
   decouplingPct: number | null;
 }
 
-export function Activities({ range, refreshKey, selectedId }: PageProps & { selectedId: number | null }) {
+export function Activities({ range, refreshKey, selectedId, compareId }: PageProps & { selectedId: number | null; compareId: number | null }) {
   const { t, sport } = useI18n();
   const { data: acts } = useApi<ActivityLite[]>(`activities?from=${daysAgo(range)}`, [refreshKey]);
   const [filter, setFilter] = useState("");
   const types = useMemo(() => [...new Set(acts?.map((a) => a.type))].sort(), [acts]);
   const shown = acts?.filter((a) => !filter || a.type === filter);
 
+  if (selectedId && compareId) return <Compare a={selectedId} b={compareId} />;
   if (selectedId) return <ActivityDetail id={selectedId} />;
 
   return (
@@ -151,6 +153,7 @@ function ActivityDetail({ id }: { id: number }) {
         <a href="#/activities" className="muted">{tr("activities.back")}</a>
         <h2 style={{ fontSize: 18, marginTop: 6 }}>{a.name}</h2>
         <p className="sub">{fmtStart(a.start)} · {sport(a.type ?? "")}</p>
+        {a.streams?.dist.some((v) => (v ?? 0) > 0) && <ComparePicker id={id} />}
         <div className="tiles">
           <Tile label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} />
           {s.distance ? <Tile label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" /> : null}

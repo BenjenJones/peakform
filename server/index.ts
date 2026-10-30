@@ -19,6 +19,7 @@ import {
 } from "./analytics.js";
 import { type AppEnv, authRoutes, requireUser, sameOrigin } from "./auth.js";
 import { unpackJson } from "./codec.js";
+import { compareActivities, compareCandidates } from "./compare.js";
 import { config } from "./config.js";
 import { db } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
@@ -208,6 +209,17 @@ api.get("/activities/:id", (c) => {
       : null,
     decouplingPct: streams ? decoupling(streams) : null,
   });
+});
+
+api.get("/activities/:id/candidates", (c) => {
+  const out = compareCandidates(c.get("user").id, Number(c.req.param("id")));
+  return out ? c.json(out) : c.json({ error: "not found" }, 404);
+});
+
+api.get("/compare", (c) => {
+  const out = compareActivities(c.get("user").id, Number(c.req.query("a")), Number(c.req.query("b")));
+  // Missing activity, no FIT streams yet, or no distance recorded.
+  return out ? c.json(out) : c.json({ error: "not comparable" }, 404);
 });
 
 api.get("/curve", (c) => {

@@ -128,7 +128,9 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
       {active === "day" && <Day {...props} date={rest[0] ?? null} />}
       {active === "recovery" && <Recovery {...props} />}
       {active === "training" && <Training {...props} />}
-      {active === "activities" && <Activities {...props} selectedId={rest[0] ? Number(rest[0]) : null} />}
+      {active === "activities" && (
+        <Activities {...props} selectedId={rest[0] ? Number(rest[0]) : null} compareId={rest[1] === "compare" && rest[2] ? Number(rest[2]) : null} />
+      )}
       {active === "insights" && <Insights {...props} />}
       {active === "data" && <Data {...props} />}
       {active === "account" && <Account me={me} onChange={reloadMe} />}

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- Compare two activities, e.g. two runs over the same route: **Compare with** on an
+  activity's page suggests activities of the same sport with a similar distance, start and
+  finish first.
+  - Lead curve: how many seconds A is ahead of or behind B at each point of the route.
+  - Pace, heart rate, power and elevation of both on one distance axis.
+  - Kilometre splits side by side with the difference per kilometre.
+  - Both routes on one map, with markers following the charts.
+  - Based on moving time, so stops at traffic lights do not count. If GPS measured one route a
+    little longer, it is stretched to fit so the same spot lines up.
+
 ## 0.3.0
 
 ### Added

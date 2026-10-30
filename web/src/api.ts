@@ -96,6 +96,32 @@ export interface Night {
   hrError: string | null;
 }
 
+export interface CompareSide {
+  id: number; name: string; type: string; start: string;
+  distanceM: number; movingS: number; avgHr: number | null; avgPower: number | null; elevGainM: number | null;
+}
+
+export interface CompareProfile {
+  time: number[]; hr: (number | null)[]; speed: (number | null)[]; power: (number | null)[]; alt: (number | null)[];
+  lat: (number | null)[]; lon: (number | null)[];
+}
+
+export interface Split { km: number; lengthM: number; timeS: number; avgHr: number | null }
+
+/** Two activities on a shared distance grid (km, on A's distance). */
+export interface Comparison {
+  a: CompareSide;
+  b: CompareSide;
+  x: number[];
+  /** Seconds A is ahead of B; negative when behind. */
+  delta: number[];
+  profiles: { a: CompareProfile; b: CompareProfile };
+  splits: { a: Split[]; b: Split[] };
+}
+
+export interface CompareCandidate { id: number; name: string; start: string; distanceM: number | null; movingS: number | null }
+export interface CompareCandidates { similar: CompareCandidate[]; others: CompareCandidate[] }
+
 export interface Streams {
   t: number[]; hr: (number | null)[]; power: (number | null)[]; speed: (number | null)[];
   cadence: (number | null)[]; alt: (number | null)[]; dist: (number | null)[];
