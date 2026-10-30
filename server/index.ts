@@ -10,18 +10,22 @@ import {
   correlationMatrix,
   daySummary,
   decoupling,
+  hrLimitFor,
+  hrLimits,
   INSIGHT_METRICS,
+  isRun,
   listActivities,
   meanMax,
   paired,
   readiness,
   trainingLoad,
+  withStepCadence,
 } from "./analytics.js";
 import { type AppEnv, authRoutes, requireUser, sameOrigin } from "./auth.js";
 import { unpackJson } from "./codec.js";
 import { compareActivities, compareCandidates } from "./compare.js";
 import { config } from "./config.js";
-import { db } from "./db.js";
+import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
 import { night } from "./night.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
@@ -75,7 +79,23 @@ api.get("/me", (c) => {
     displayName: u.display_name,
     mode: config.isHaApp ? "homeassistant" : "local",
     garminKey: credentialInfo(u.id), // never the key itself
+    prefs: kvGet<Record<string, string>>(u.id, "prefs") ?? {},
   });
+});
+
+/** View settings (start page, date range, language), so they follow the account across browsers. */
+const PREF_KEYS = new Set(["startTab", "range", "lang"]);
+
+api.put("/me/prefs", async (c) => {
+  const uid = c.get("user").id;
+  const body = await c.req.json<Record<string, unknown>>();
+  const prefs = kvGet<Record<string, string>>(uid, "prefs") ?? {};
+  for (const [k, v] of Object.entries(body ?? {})) {
+    if (!PREF_KEYS.has(k) || typeof v !== "string" || v.length > 32) return c.json({ error: `Invalid setting ${k}` }, 400);
+    prefs[k] = v;
+  }
+  kvSet(uid, "prefs", prefs);
+  return c.json({ ok: true });
 });
 
 api.put("/me/garmin-key", async (c) => {
@@ -114,6 +134,26 @@ api.post("/me/password", async (c) => {
   } catch (e) {
     return c.json({ error: (e as Error).message, code: e instanceof UserError ? e.code : undefined }, 400);
   }
+});
+
+api.get("/me/hr-limits", (c) => {
+  const uid = c.get("user").id;
+  const types = db.prepare("SELECT type, count(*) AS n FROM activity WHERE user_id = ? AND type IS NOT NULL GROUP BY type ORDER BY n DESC").all(uid) as { type: string }[];
+  return c.json({ limits: hrLimits(uid), types: types.map((r) => r.type) });
+});
+
+api.put("/me/hr-limits", async (c) => {
+  const { limits } = await c.req.json<{ limits?: Record<string, unknown> }>();
+  const clean: Record<string, number> = {};
+  for (const [type, v] of Object.entries(limits ?? {})) {
+    const bpm = Number(v);
+    if (!/^[a-z0-9_]{1,64}$/.test(type) || !Number.isInteger(bpm) || bpm < 60 || bpm > 240) {
+      return c.json({ error: `Invalid heart rate limit for ${type}`, code: "hr_limit" }, 400);
+    }
+    clean[type] = bpm;
+  }
+  kvSet(c.get("user").id, "hrLimits", clean);
+  return c.json({ ok: true });
 });
 
 /** Deletes the account and, via ON DELETE CASCADE, every row of Garmin data. */
@@ -193,7 +233,9 @@ api.get("/activities/:id", (c) => {
   const id = Number(c.req.param("id"));
   const row = db.prepare("SELECT * FROM activity WHERE user_id = ? AND id = ?").get(uid, id) as Record<string, string | null> & { detail: Uint8Array | null; summary: string } | undefined;
   if (!row) return c.json({ error: "not found" }, 404);
-  const streams = activityStreams(uid, id);
+  const raw = activityStreams(uid, id);
+  const run = isRun(row.type);
+  const streams = raw && run ? withStepCadence(raw) : raw;
   return c.json({
     id,
     type: row.type,
@@ -207,7 +249,8 @@ api.get("/activities/:id", (c) => {
     curves: streams
       ? { power: meanMax(streams, "power"), speed: meanMax(streams, "speed"), hr: meanMax(streams, "hr") }
       : null,
-    decouplingPct: streams ? decoupling(streams) : null,
+    decoupling: streams ? decoupling(streams, run) : null,
+    hrLimit: hrLimitFor(uid, row.type),
   });
 });
 

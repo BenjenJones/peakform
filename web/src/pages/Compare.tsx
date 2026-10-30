@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
-import { type CompareCandidate, type CompareCandidates, type Comparison, fmtDuration, fmtPace, useApi } from "../api";
-import { base, Chart, line, type Tokens } from "../Chart";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CompareCandidate, type CompareCandidates, type Comparison, type CompareProfile, fmtDuration, fmtPace, isRun, useApi } from "../api";
+import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
 import { fmtDate, fmtNum, useI18n } from "../i18n";
-import { latLons, positionAt, TrackMap } from "../RouteMap";
+import { type LatLon, latLons, positionAt, TrackMap } from "../RouteMap";
 import { CardTitle, Info } from "../ui";
 
 const fmtStart = (s: string) => `${fmtDate(s)} ${s.slice(11, 16)}`;
@@ -19,6 +19,33 @@ function nearest(xs: number[], km: number) {
   }
   return lo > 0 && km - xs[lo - 1] < xs[lo] - km ? lo - 1 : lo;
 }
+/** Replay speeds: seconds of activity per real second. */
+const SPEEDS = [10, 30, 60, 120];
+
+/**
+ * Where an activity was after `t` seconds of moving time: interpolated between grid points so
+ * the replay glides instead of jumping 10 m at a time. Stays at the finish once it is done.
+ */
+function atTime(p: CompareProfile, x: number[], t: number): { km: number; pos: LatLon | null } {
+  const n = p.time.findLastIndex((v) => v !== null) + 1;
+  if (!n) return { km: 0, pos: null };
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if ((p.time[mid] as number) <= t) lo = mid;
+    else hi = mid - 1;
+  }
+  const i = lo;
+  const t0 = p.time[i] as number;
+  const t1 = p.time[i + 1];
+  const f = i + 1 < n && t1 !== null && t1 > t0 ? Math.min(1, (t - t0) / (t1 - t0)) : 0;
+  const a = positionAt(p.lat, p.lon, i);
+  const b = f > 0 ? positionAt(p.lat, p.lon, i + 1) : null;
+  const pos: LatLon | null = a && b ? [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] : a;
+  return { km: x[i] + (f > 0 ? (x[i + 1] - x[i]) * f : 0), pos };
+}
+
 const go = (a: number, b: number) => (location.hash = `#/activities/${a}/compare/${b}`);
 
 /** "Compare with…" select on the activity page: likely same route first, then the rest of the sport. */
@@ -61,16 +88,67 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
         : [],
     [c],
   );
+  // Replay by moving time: both start together, so the gap on the map is the race between them.
+  const [playT, setPlayT] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(30);
+  const endT = c ? Math.max(c.a.movingS, c.b.movingS) : 0;
+  const playRef = useRef(0);
+  useEffect(() => {
+    if (!playing) return;
+    let last = performance.now();
+    let raf = requestAnimationFrame(function tick(now) {
+      playRef.current = Math.min(endT, playRef.current + ((now - last) / 1000) * speed);
+      last = now;
+      setPlayT(playRef.current);
+      if (playRef.current >= endT) setPlaying(false);
+      else raf = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [playing, speed, endT]);
+  const seek = (t: number) => {
+    playRef.current = t;
+    setPlayT(t);
+  };
+  const toggle = () => {
+    if (!playing && playRef.current >= endT) seek(0);
+    setPlaying(!playing);
+  };
+  const replay = useMemo(
+    () => (c && playT !== null ? { a: atTime(c.profiles.a, c.x, playT), b: atTime(c.profiles.b, c.x, playT) } : null),
+    [c, playT],
+  );
+  // Replay position of each activity as a dot on its own curve (A is series 0, B series 1).
+  const marks = useMemo<Mark[] | undefined>(
+    () =>
+      replay
+        ? [
+            { x: replay.a.km, series: 0, color: "s1" },
+            { x: replay.b.km, series: 1, color: "s2" },
+          ]
+        : undefined,
+    [replay],
+  );
+  // The lead is known up to where the one behind has got.
+  const leadMarks = useMemo<Mark[] | undefined>(
+    () => (replay ? [{ x: Math.min(replay.a.km, replay.b.km), series: 0, color: "s1" }] : undefined),
+    [replay],
+  );
+
   const hover = useMemo(() => {
-    if (!c || hoverX === null) return [null, null];
-    const i = nearest(c.x, hoverX);
-    return [positionAt(c.profiles.a.lat, c.profiles.a.lon, i), positionAt(c.profiles.b.lat, c.profiles.b.lon, i)];
-  }, [c, hoverX]);
+    // Chart hover wins while paused, so the charts can still be explored after a replay.
+    if (c && hoverX !== null && !playing) {
+      const i = nearest(c.x, hoverX);
+      return [positionAt(c.profiles.a.lat, c.profiles.a.lon, i), positionAt(c.profiles.b.lat, c.profiles.b.lon, i)];
+    }
+    return replay ? [replay.a.pos, replay.b.pos] : [null, null];
+  }, [c, hoverX, playing, replay]);
   const hasMap = tracks.some((t) => t.points.length >= 2);
 
   const chart = useCallback(
-    (key: "speed" | "hr" | "power" | "alt" | "delta", fmt?: (v: number) => string) => (tk: Tokens) => {
+    (key: "speed" | "hr" | "cadence" | "power" | "alt" | "delta", fmt?: (v: number) => string) => (tk: Tokens) => {
       const b = base(tk);
+      const limit = key === "hr" ? c!.hrLimit : null;
       const xy = (ys: (number | null)[]) => c!.x.map((x, i) => [x, ys[i]]);
       const series =
         key === "delta"
@@ -80,7 +158,10 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
                 markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: tk.axis, type: "solid" }, data: [{ yAxis: 0 }] },
               }),
             ]
-          : [line("A", xy(c!.profiles.a[key]), tk.s1), line("B", xy(c!.profiles.b[key]), tk.s2)];
+          : [
+              line("A", xy(c!.profiles.a[key]), tk.s1, limit ? { markLine: limitLine(limit, tk.serious, t("activities.hrLimitLabel", { bpm: limit })) } : {}),
+              line("B", xy(c!.profiles.b[key]), tk.s2),
+            ];
       return {
         ...b,
         grid: { ...(b.grid as object), top: key === "delta" ? 8 : 24, bottom: 24 },
@@ -97,6 +178,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
         yAxis: {
           ...(b.yAxis as object),
           type: "value" as const,
+          max: maxWithLimit(limit),
           axisLabel: { color: tk.muted, formatter: fmt ? (v: number) => fmt(v).replace(" /km", "") : undefined },
         },
         series,
@@ -108,10 +190,11 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
 
   const charts = useMemo(() => {
     if (!c) return [];
-    const both = (k: "speed" | "hr" | "power" | "alt") => [c.profiles.a, c.profiles.b].every((p) => p[k].some((v) => (v ?? 0) > 0));
+    const both = (k: "speed" | "hr" | "cadence" | "power" | "alt") => [c.profiles.a, c.profiles.b].every((p) => p[k].some((v) => (v ?? 0) > 0));
     const out: { title: string; option: (tk: Tokens) => object }[] = [];
     if (both("speed")) out.push({ title: t("activities.paceChart"), option: chart("speed", fmtPace) });
     if (both("hr")) out.push({ title: t("activities.hrChart"), option: chart("hr") });
+    if (isRun(c.a.type) && isRun(c.b.type) && both("cadence")) out.push({ title: t("activities.cadenceChart"), option: chart("cadence") });
     if (both("power")) out.push({ title: t("activities.powerChart"), option: chart("power") });
     if (both("alt")) out.push({ title: t("activities.elevChart"), option: chart("alt") });
     return out;
@@ -124,7 +207,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
     { tag: "A", color: "var(--s1)", s: c.a },
     { tag: "B", color: "var(--s2)", s: c.b },
   ];
-  const lead = c.delta.at(-1) ?? 0;
+  const lead = c.lead;
   const n = Math.max(c.splits.a.length, c.splits.b.length);
 
   return (
@@ -184,21 +267,56 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
       </div>
 
       <div className="card">
-        <CardTitle title={t("compare.lead")} sub={t("compare.leadSub")} help="help.compare_lead" />
-        <Chart option={chart("delta", signed)} height={180} group="cmp" onHover={setHoverX} />
+        <CardTitle
+          title={t("compare.lead")}
+          sub={
+            Math.abs(c.a.distanceM - c.b.distanceM) >= 10
+              ? `${t("compare.leadSub")} · ${t("compare.leadUntil", { km: fmtNum(Math.min(c.a.distanceM, c.b.distanceM) / 1000, 2) })}`
+              : t("compare.leadSub")
+          }
+          help="help.compare_lead"
+        />
+        <Chart option={chart("delta", signed)} height={180} group="cmp" onHover={setHoverX} marks={leadMarks} />
       </div>
 
       {hasMap && (
         <div className="card span-4 route-card">
           <h2>{t("activities.route")}</h2>
           <TrackMap tracks={tracks} hover={hover} />
+          <div className="replay">
+            <button type="button" className="btn" onClick={toggle} aria-label={t(playing ? "compare.pause" : "compare.play")} title={t(playing ? "compare.pause" : "compare.play")}>
+              {playing ? "❚❚" : "▶"}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={endT}
+              step={1}
+              value={playT ?? 0}
+              onChange={(e) => seek(Number(e.target.value))}
+              aria-label={t("compare.replayTime")}
+            />
+            <span className="num">{fmtDuration(playT ?? 0)}</span>
+            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label={t("compare.replaySpeed")}>
+              {SPEEDS.map((s) => (
+                <option key={s} value={s}>
+                  {s}×
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="legend" style={{ marginTop: 8 }}>
             <span>
-              <span className="dot" style={{ background: "var(--s1)" }} /> A
+              <span className="dot" style={{ background: "var(--s1)" }} /> A{replay && ` ${fmtNum(replay.a.km, 2)} km`}
             </span>
             <span>
-              <span className="dot" style={{ background: "var(--s2)" }} /> B
+              <span className="dot" style={{ background: "var(--s2)" }} /> B{replay && ` ${fmtNum(replay.b.km, 2)} km`}
             </span>
+            {replay && (
+              <span>
+                {t("compare.gap")} {fmtNum(Math.abs(replay.a.km - replay.b.km) * 1000)} m
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -207,7 +325,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
         {charts.map((ch) => (
           <div key={ch.title}>
             <h2>{ch.title}</h2>
-            <Chart option={ch.option} height={150} group="cmp" onHover={setHoverX} />
+            <Chart option={ch.option} height={150} group="cmp" onHover={setHoverX} marks={marks} />
           </div>
         ))}
       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "./api";
-import { errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
+import { detectLang, errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
 import { Account } from "./pages/Account";
 import { Activities } from "./pages/Activities";
 import { Data } from "./pages/Data";
@@ -10,7 +10,7 @@ import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Recovery } from "./pages/Recovery";
 import { Training } from "./pages/Training";
-import { prefGet, prefSet, startTab, TABS } from "./prefs";
+import { clearPrefs, loadPrefs, prefGet, prefSet, startTab, TABS } from "./prefs";
 
 // Hash routing: no server-side route knowledge needed behind the ingress proxy.
 
@@ -41,10 +41,22 @@ export function App() {
 
 function Root() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
-  const loadMe = () => api<Me>("me").then(setMe, () => setMe(null));
+  const { lang, setLang } = useI18n();
+  const signedOut = () => {
+    clearPrefs();
+    setMe(null);
+  };
+  // Settings must be in place before the dashboard mounts: it reads start page and range once.
+  const loadMe = () =>
+    api<Me>("me").then((m) => {
+      loadPrefs(m.prefs);
+      const l = detectLang();
+      if (l !== lang) setLang(l);
+      setMe(m);
+    }, signedOut);
   useEffect(() => {
     loadMe();
-    const on = () => setMe(null);
+    const on = signedOut;
     addEventListener("unauthenticated", on);
     return () => removeEventListener("unauthenticated", on);
   }, []);

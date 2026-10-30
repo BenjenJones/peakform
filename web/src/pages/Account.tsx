@@ -1,5 +1,5 @@
-import { type FormEvent, useState } from "react";
-import { type Me, send } from "../api";
+import { type FormEvent, useEffect, useState } from "react";
+import { type HrLimits as HrLimitsData, type Me, send, useApi } from "../api";
 import { errorText, fmtDate, useI18n } from "../i18n";
 import { prefSet, startTab, type Tab, TABS } from "../prefs";
 
@@ -8,6 +8,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
     <div className="grid">
       <GarminKey me={me} onChange={onChange} />
       <Prefs />
+      <HrLimits />
       {me.mode === "local" && <Password />}
       <Danger me={me} onChange={onChange} />
     </div>
@@ -105,6 +106,66 @@ function Prefs() {
         </select>
       </label>
     </div>
+  );
+}
+
+/** Upper heart rate limit per sport, drawn into the heart rate charts. Stored on the server. */
+function HrLimits() {
+  const { t, sport } = useI18n();
+  const { data } = useApi<HrLimitsData>("me/hr-limits");
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (data) setValues(Object.fromEntries(Object.entries(data.limits).map(([k, v]) => [k, String(v)])));
+  }, [data]);
+  if (!data?.types.length) return null;
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    const limits = Object.fromEntries(Object.entries(values).filter(([, v]) => v.trim()).map(([k, v]) => [k, Number(v)]));
+    try {
+      await send("me/hr-limits", "PUT", { limits });
+      setMsg({ ok: true, text: t("account.hrLimitsSaved") });
+    } catch (err) {
+      setMsg({ ok: false, text: errorText(t, err) });
+    }
+  };
+
+  return (
+    <form className="card span-6" onSubmit={save}>
+      <h2>{t("account.hrLimitsTitle")}</h2>
+      <p className="sub">{t("account.hrLimitsSub")}</p>
+      <table>
+        <tbody>
+          {data.types.map((type) => (
+            <tr key={type}>
+              <td>{sport(type)}</td>
+              <td className="num" style={{ width: 120 }}>
+                <input
+                  className="input"
+                  style={{ margin: 0, textAlign: "right" }}
+                  type="number"
+                  inputMode="numeric"
+                  min={60}
+                  max={240}
+                  step={1}
+                  placeholder="–"
+                  aria-label={`${sport(type)} (bpm)`}
+                  value={values[type] ?? ""}
+                  onChange={(e) => setValues({ ...values, [type]: e.target.value })}
+                />
+              </td>
+              <td className="muted" style={{ width: 40 }}>bpm</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {msg && <div className={msg.ok ? "success" : "error"}>{msg.text}</div>}
+      <button className="btn primary" style={{ marginTop: 8 }}>
+        {t("account.hrLimitsSave")}
+      </button>
+    </form>
   );
 }
 

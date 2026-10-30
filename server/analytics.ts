@@ -189,20 +189,105 @@ export function bestCurve(uid: number, from: string, to: string, field: "power" 
   return [...best.entries()].sort((a, b) => a[0] - b[0]).map(([durationS, b]) => ({ durationS, ...b }));
 }
 
-/**
- * Aerobic decoupling (Pa:HR): drift in output-per-heartbeat between halves.
- * Under ~5% suggests a well-developed aerobic base for that effort.
- */
-export function decoupling(streams: Streams): number | null {
-  const out = streams.power.some((p) => (p ?? 0) > 0) ? streams.power : streams.speed;
-  const pairs = streams.hr.map((h, i) => [out[i], h] as const).filter(([o, h]) => o && h && o > 0 && h > 0) as [number, number][];
-  if (pairs.length < 600) return null;
-  const half = Math.floor(pairs.length / 2);
-  const ratio = (xs: [number, number][]) => mean(xs.map((p) => p[0])) / mean(xs.map((p) => p[1]));
-  const first = ratio(pairs.slice(0, half));
-  const second = ratio(pairs.slice(half));
-  return ((first - second) / first) * 100;
+/** Garmin sport types for running: running, trail_running, treadmill_running, virtual_run, … */
+export const isRun = (type: string | null) => !!type && /run/.test(type);
+
+/** FIT records running cadence as strides (one foot) per minute; steps per minute is twice that. */
+export const withStepCadence = (s: Streams): Streams => ({ ...s, cadence: s.cadence.map((c) => (c === null ? null : c * 2)) });
+
+/** Longer gaps between records are pauses, not time spent at the recorded output. */
+const MAX_GAP_S = 30;
+/** Shorter than this, heart rate has not settled enough for a drift to mean anything. */
+const MIN_DECOUPLING_S = 20 * 60;
+const EF_WINDOW_S = 5 * 60;
+const EF_STEP_S = 30;
+
+export interface DecouplingHalf {
+  /** Mean output: m/s (pace basis) or W (power basis). */
+  out: number;
+  hr: number;
+  /** Output per heartbeat: metres (pace) or watts per bpm (power). */
+  ef: number;
 }
+
+export interface Decoupling {
+  pct: number;
+  basis: "speed" | "power";
+  /** Activity time where the second half starts. */
+  splitT: number;
+  halves: [DecouplingHalf, DecouplingHalf];
+  /** Rolling output per heartbeat over EF_WINDOW_S, as [t, ef]. */
+  series: [number, number][];
+}
+
+/**
+ * Aerobic decoupling (Pa:HR): drift in output-per-heartbeat between the first and second half
+ * of the time spent moving. Under ~5% suggests a well-developed aerobic base for that effort.
+ * Runs always use pace; other sports use power when recorded. Records are weighted by their
+ * duration, so smart recording (irregular intervals) does not skew the halves.
+ */
+export function decoupling(streams: Streams, run: boolean): Decoupling | null {
+  const basis = !run && streams.power.some((p) => (p ?? 0) > 0) ? "power" : "speed";
+  const out = streams[basis];
+  const pts: { t: number; dt: number; o: number; h: number }[] = [];
+  for (let i = 0; i < streams.t.length - 1; i++) {
+    const o = out[i];
+    const h = streams.hr[i];
+    const dt = Math.min(streams.t[i + 1] - streams.t[i], MAX_GAP_S);
+    if (o && h && o > 0 && h > 0 && dt > 0) pts.push({ t: streams.t[i], dt, o, h });
+  }
+  const total = pts.reduce((a, p) => a + p.dt, 0);
+  if (total < MIN_DECOUPLING_S) return null;
+
+  const efOf = (o: number, h: number) => (basis === "speed" ? (o * 60) / h : o / h);
+  const half = (xs: typeof pts): DecouplingHalf => {
+    const w = xs.reduce((a, p) => a + p.dt, 0);
+    const o = xs.reduce((a, p) => a + p.o * p.dt, 0) / w;
+    const h = xs.reduce((a, p) => a + p.h * p.dt, 0) / w;
+    return { out: o, hr: h, ef: efOf(o, h) };
+  };
+  let acc = 0;
+  let k = 0;
+  while (k < pts.length && acc < total / 2) acc += pts[k++].dt;
+  const first = half(pts.slice(0, k));
+  const second = half(pts.slice(k));
+
+  // Rolling window by moving time, sampled every EF_STEP_S of it.
+  const series: [number, number][] = [];
+  let lo = 0;
+  let wo = 0;
+  let wh = 0;
+  let w = 0;
+  let movedT = 0;
+  let nextSample = EF_WINDOW_S;
+  const moved: number[] = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    moved.push(movedT);
+    movedT += p.dt;
+    wo += p.o * p.dt;
+    wh += p.h * p.dt;
+    w += p.dt;
+    while (movedT - moved[lo] - pts[lo].dt >= EF_WINDOW_S) {
+      wo -= pts[lo].o * pts[lo].dt;
+      wh -= pts[lo].h * pts[lo].dt;
+      w -= pts[lo].dt;
+      lo++;
+    }
+    if (movedT >= nextSample) {
+      series.push([p.t, +efOf(wo / w, wh / w).toFixed(3)]);
+      nextSample += EF_STEP_S;
+    }
+  }
+
+  return { pct: ((first.ef - second.ef) / first.ef) * 100, basis, splitT: pts[k]?.t ?? pts.at(-1)!.t, halves: [first, second], series };
+}
+
+// ---------- HR limits ----------
+
+/** Upper heart rate limit per sport type, e.g. { running: 150 }; drawn into heart rate charts. */
+export const hrLimits = (uid: number) => kvGet<Record<string, number>>(uid, "hrLimits") ?? {};
+export const hrLimitFor = (uid: number, type: string | null) => (type ? (hrLimits(uid)[type] ?? null) : null);
 
 // ---------- Insights ----------
 

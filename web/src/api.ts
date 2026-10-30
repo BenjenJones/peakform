@@ -33,6 +33,7 @@ export interface Me {
   displayName: string | null;
   mode: "homeassistant" | "local";
   garminKey: { updated_at: string; last_error: string | null } | null;
+  prefs: Record<string, string>;
 }
 
 export function useApi<T>(path: string | null, deps: unknown[] = []) {
@@ -101,20 +102,24 @@ export interface CompareSide {
   distanceM: number; movingS: number; avgHr: number | null; avgPower: number | null; elevGainM: number | null;
 }
 
+/** Values per grid point; null past the activity's own end. Cadence: steps/min for runs, rpm otherwise. */
 export interface CompareProfile {
-  time: number[]; hr: (number | null)[]; speed: (number | null)[]; power: (number | null)[]; alt: (number | null)[];
-  lat: (number | null)[]; lon: (number | null)[];
+  time: (number | null)[]; hr: (number | null)[]; cadence: (number | null)[]; speed: (number | null)[]; power: (number | null)[];
+  alt: (number | null)[]; lat: (number | null)[]; lon: (number | null)[];
 }
 
 export interface Split { km: number; lengthM: number; timeS: number; avgHr: number | null }
 
-/** Two activities on a shared distance grid (km, on A's distance). */
+/** Two activities on a shared distance grid (km), each over its own measured distance. */
 export interface Comparison {
   a: CompareSide;
   b: CompareSide;
   x: number[];
-  /** Seconds A is ahead of B; negative when behind. */
-  delta: number[];
+  /** Seconds A is ahead of B; negative when behind. Null past the shorter one's end. */
+  delta: (number | null)[];
+  /** Seconds A is ahead at the end of the shorter one. */
+  lead: number;
+  hrLimit: number | null;
   profiles: { a: CompareProfile; b: CompareProfile };
   splits: { a: Split[]; b: Split[] };
 }
@@ -127,6 +132,11 @@ export interface Streams {
   cadence: (number | null)[]; alt: (number | null)[]; dist: (number | null)[];
   lat: (number | null)[]; lon: (number | null)[];
 }
+
+/** Garmin sport types for running: running, trail_running, treadmill_running, virtual_run, … */
+export const isRun = (type: string | null | undefined) => !!type && /run/.test(type);
+
+export interface HrLimits { limits: Record<string, number>; types: string[] }
 
 export const fmtDuration = (s: number) => {
   const h = Math.floor(s / 3600);

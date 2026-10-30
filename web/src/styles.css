@@ -198,7 +198,8 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 .range .ticks { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
 .range .ticks span { position: absolute; top: 2px; transform: translateX(-50%); }
 
-.route-map { height: 380px; border-radius: 8px; overflow: hidden; background: var(--page); }
+/* isolate: Leaflet panes use z-index 400–1000, which would otherwise cover popovers and chart tooltips. */
+.route-map { height: 380px; border-radius: 8px; overflow: hidden; background: var(--page); isolation: isolate; }
 .route-map .leaflet-container { font: inherit; }
 .route-line { stroke: var(--s1); }
 .route-start { stroke: var(--surface); fill: var(--good); }
@@ -215,3 +216,6 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 }
 .route-card { display: flex; flex-direction: column; }
 .route-card .route-map { flex: 1; min-height: 380px; height: auto; }
+.replay { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.replay input[type="range"] { flex: 1; min-width: 0; accent-color: var(--s1); }
+.replay .num { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-2); min-width: 4.5em; text-align: right; }

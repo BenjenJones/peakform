@@ -1,9 +1,10 @@
-import { activityStreams } from "./analytics.js";
+import { activityStreams, hrLimitFor, isRun, withStepCadence } from "./analytics.js";
 import { db } from "./db.js";
 import type { Streams } from "./garmin/fit.js";
 
-// Two activities over the same route, aligned by distance so the same spot of the course
-// lines up even when one run was faster.
+// Two activities over the same route on one distance axis, so the same spot of the course
+// lines up even when one run was faster. Each keeps its own measured distance: if GPS measured
+// one longer, it simply ends further right.
 
 /** Slower than this between two records counts as standing (traffic light, auto-pause gap). */
 const MOVING_MPS = 0.5;
@@ -43,9 +44,11 @@ export interface Split {
 }
 
 interface Profile {
-  /** Moving seconds to reach each grid point. */
-  time: number[];
+  /** Moving seconds to reach each grid point; null past the activity's end. */
+  time: (number | null)[];
   hr: (number | null)[];
+  /** Steps per minute for runs, rpm otherwise. */
+  cadence: (number | null)[];
   speed: (number | null)[];
   power: (number | null)[];
   alt: (number | null)[];
@@ -57,10 +60,14 @@ interface Profile {
 export interface Comparison {
   a: CompareSide;
   b: CompareSide;
-  /** Grid in km on A's distance; B is stretched onto it. */
+  /** Grid in km up to the longer of the two distances. */
   x: number[];
-  /** Seconds A is ahead of B at each grid point (negative: behind). */
-  delta: number[];
+  /** Seconds A is ahead of B at each grid point (negative: behind); null past the shorter one's end. */
+  delta: (number | null)[];
+  /** Seconds A is ahead at the end of the shorter of the two. */
+  lead: number;
+  /** Upper heart rate limit set for A's sport. */
+  hrLimit: number | null;
   profiles: { a: Profile; b: Profile };
   splits: { a: Split[]; b: Split[] };
 }
@@ -155,18 +162,22 @@ function smooth(v: (number | null)[], radius: number) {
   });
 }
 
-function profile(s: Streams, tr: Track, grid: number[], step: number, scale: number): Profile {
-  const pos = tr.dist.map((d) => d * scale);
+function profile(s: Streams, tr: Track, grid: number[], step: number): Profile {
+  const pos = tr.dist;
   const at = interpolator(pos, tr.moving);
   const radius = Math.max(1, Math.round(SMOOTH_M / 2 / step));
+  // Bins past the end would otherwise repeat the last value.
+  const end = Math.ceil(tr.total / step);
+  const cut = <T,>(v: (T | null)[]) => v.map((x, k) => (k <= end ? x : null));
   return {
-    time: grid.map((x) => Math.round(at(x))),
-    hr: binned(pos, s.hr, grid, step, true),
-    speed: smooth(binned(pos, s.speed, grid, step, true), radius),
-    power: smooth(binned(pos, s.power, grid, step, true), radius),
-    alt: binned(pos, s.alt, grid, step, false),
-    lat: binned(pos, s.lat, grid, step, false).map(round6),
-    lon: binned(pos, s.lon, grid, step, false).map(round6),
+    time: cut(grid.map((x) => Math.round(at(x)))),
+    hr: cut(binned(pos, s.hr, grid, step, true)),
+    cadence: cut(smooth(binned(pos, s.cadence, grid, step, true), radius)),
+    speed: cut(smooth(binned(pos, s.speed, grid, step, true), radius)),
+    power: cut(smooth(binned(pos, s.power, grid, step, true), radius)),
+    alt: cut(binned(pos, s.alt, grid, step, false)),
+    lat: cut(binned(pos, s.lat, grid, step, false).map(round6)),
+    lon: cut(binned(pos, s.lon, grid, step, false).map(round6)),
   };
 }
 
@@ -199,26 +210,32 @@ const getRow = (uid: number, id: number) =>
 export function compareActivities(uid: number, idA: number, idB: number): Comparison | null {
   const ra = getRow(uid, idA);
   const rb = getRow(uid, idB);
-  const sa = ra && activityStreams(uid, idA);
-  const sb = rb && activityStreams(uid, idB);
-  if (!ra || !rb || !sa || !sb) return null;
+  const rawA = ra && activityStreams(uid, idA);
+  const rawB = rb && activityStreams(uid, idB);
+  if (!ra || !rb || !rawA || !rawB) return null;
+  const sa = isRun(ra.type) ? withStepCadence(rawA) : rawA;
+  const sb = isRun(rb.type) ? withStepCadence(rawB) : rawB;
   const ta = track(sa);
   const tb = track(sb);
   // Distance is the shared axis: without it there is nothing to align.
   if (ta.total < 100 || tb.total < 100) return null;
 
-  const step = Math.max(10, Math.ceil(ta.total / MAX_POINTS / 10) * 10);
+  const total = Math.max(ta.total, tb.total);
+  const step = Math.max(10, Math.ceil(total / MAX_POINTS / 10) * 10);
   const grid: number[] = [];
-  for (let x = 0; x < ta.total; x += step) grid.push(x);
-  grid.push(ta.total);
+  for (let x = 0; x < total; x += step) grid.push(x);
+  grid.push(total);
 
-  const a = profile(sa, ta, grid, step, 1);
-  const b = profile(sb, tb, grid, step, ta.total / tb.total);
+  const a = profile(sa, ta, grid, step);
+  const b = profile(sb, tb, grid, step);
+  const shared = Math.min(ta.total, tb.total);
   return {
     a: side(ra, ta),
     b: side(rb, tb),
     x: grid.map((x) => Math.round(x) / 1000),
-    delta: grid.map((_, k) => b.time[k] - a.time[k]),
+    delta: grid.map((x, k) => (x <= shared && a.time[k] !== null && b.time[k] !== null ? b.time[k] - a.time[k] : null)),
+    lead: Math.round(interpolator(tb.dist, tb.moving)(shared) - interpolator(ta.dist, ta.moving)(shared)),
+    hrLimit: hrLimitFor(uid, ra.type),
     profiles: { a, b },
     splits: { a: splits(sa, ta), b: splits(sb, tb) },
   };

@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
+import { prefGet, prefSet } from "./prefs";
 
 export type Lang = "en" | "de";
 
@@ -222,13 +223,19 @@ const en = {
   "compare.moving": "Moving time",
   "compare.lead": "Lead",
   "compare.leadSub": "Seconds A is ahead of B at each point of the route",
+  "compare.leadUntil": "up to {km} km, where the shorter one ends",
+  "compare.play": "Replay",
+  "compare.pause": "Pause",
+  "compare.replayTime": "Moving time",
+  "compare.replaySpeed": "Replay speed",
+  "compare.gap": "Gap",
   "compare.splits": "Splits",
   "compare.splitsSub": "Per kilometre, moving time",
   "compare.notComparable": "These activities cannot be compared: one of them has no recorded distance or its FIT file is not loaded yet.",
   "help.compare_moving":
     "Time spent moving: stops (traffic lights, auto-pause) are left out, so they do not count against either activity.",
   "help.compare_lead":
-    "Above zero, A is ahead at that point of the route; below zero, B is. A rising curve means A is gaining time there. Both activities are placed on A's distance: if GPS measured one a little longer, B is stretched to fit, so the same spot of the route lines up.",
+    "Above zero, A is ahead at that point of the route; below zero, B is. A rising curve means A is gaining time there. Both are shown over the distance they actually measured, without stretching: if GPS measured one longer, its curves end further right, and the lead is shown up to where the shorter one ends.",
   "activities.np": "NP",
   "activities.decoupling": "Aerobic decoupling",
   "activities.steady": "Steady (< 5%)",
@@ -246,6 +253,19 @@ const en = {
   "activities.curveSub": "Best average sustained in this activity",
   "activities.laps": "Laps",
   "activities.pace": "Pace",
+  "activities.cadence": "Cadence",
+  "activities.cadenceChart": "Cadence (spm)",
+  "activities.spm": "spm",
+  "activities.hrLimitLabel": "Limit {bpm}",
+  "activities.setHrLimit": "Set HR limit",
+  "activities.aboveLimit": "Above HR limit",
+  "activities.aboveLimitHint": "{pct}% of the time above {bpm} bpm",
+  "activities.decouplingSubPace": "Metres per heartbeat, 5-minute rolling average. Dashed: mean of each half.",
+  "activities.decouplingSubPower": "Watts per heartbeat, 5-minute rolling average. Dashed: mean of each half.",
+  "activities.efPace": "m/heartbeat",
+  "activities.efPower": "W/bpm",
+  "activities.firstHalf": "1st half",
+  "activities.secondHalf": "2nd half",
 
   // Insights
   "insights.title": "What moves what",
@@ -321,8 +341,12 @@ const en = {
   "account.viaHa": "via Home Assistant",
   "account.signOut": "Sign out",
   "account.prefsTitle": "Display",
-  "account.prefsSub": "Stored in this browser.",
+  "account.prefsSub": "Stored with your account, so they apply in every browser.",
   "account.startTab": "Start page",
+  "account.hrLimitsTitle": "Heart rate limits",
+  "account.hrLimitsSub": "Upper limit per sport, shown as a line in the heart rate charts. Leave empty for no limit. Stored with your account.",
+  "account.hrLimitsSave": "Save limits",
+  "account.hrLimitsSaved": "Limits saved.",
   "account.delete": "Delete account and data",
   "account.deleteConfirm": 'This permanently deletes your account, API key and all synced data. Type "{name}" to confirm.',
 
@@ -337,6 +361,7 @@ const en = {
   "err.wrong_current_password": "Current password is wrong",
   "err.key_format": "That does not look like an API key",
   "err.key_rejected": "Garmin rejected this key",
+  "err.hr_limit": "Heart rate limits must be whole numbers between 60 and 240",
   "err.key_verify_failed": "Could not reach Garmin to verify the key. Try again later.",
 
   // Help texts (? tooltips)
@@ -366,9 +391,13 @@ const en = {
   "help.meanmax":
     "The best average you held for each duration, e.g. your best 5-minute power. Calculated from the per-second FIT data. Solid: selected period, dashed: best of the last 2 years. The closer solid gets to dashed, the closer you are to your best form.",
   "help.decoupling":
-    "Aerobic decoupling (Pa:HR): compares power or pace per heartbeat between the first and second half. Below 5%: heart rate stayed in line with output, good aerobic endurance for this effort. Above 5%: heart rate drifted (fatigue, heat, dehydration). Only meaningful for steady sessions of about an hour or more.",
+    "Aerobic decoupling (Pa:HR): compares output per heartbeat between the first and second half of the time spent moving. Runs use pace, other sports power if recorded. Below 5%: heart rate stayed in line with output, good aerobic endurance for this effort. Above 5%: heart rate drifted (fatigue, heat, dehydration). Negative: the second half was more economical, e.g. after a long warm-up. Only meaningful for steady sessions of about an hour or more; hills and intervals distort it. Shown from 20 minutes of moving time.",
   "help.aerobic_te":
     "Garmin's aerobic training effect (0–5): the session's impact on aerobic fitness. 0–0.9 none, 1–1.9 minor, 2–2.9 maintaining, 3–3.9 improving, 4–4.9 highly improving, 5 overreaching.",
+  "help.cadence":
+    "Steps per minute, averaged over the time with steps recorded. The watch stores strides (one foot), so the value is doubled. Higher cadence at the same pace means shorter steps.",
+  "help.hr_limit":
+    "Time with heart rate above the upper limit set for this sport under Account. Pauses longer than 30 seconds are not counted.",
   "help.np":
     "Normalized Power: the steady power that would have cost the same physiologically as your variable power. Weights hard surges more than a plain average.",
   "help.weight": "Last weigh-in of each day. Days without a weigh-in stay empty.",
@@ -609,13 +638,19 @@ const de: Record<Key, string> = {
   "compare.moving": "Bewegungszeit",
   "compare.lead": "Vorsprung",
   "compare.leadSub": "Sekunden, die A an jeder Stelle der Strecke vor B liegt",
+  "compare.leadUntil": "bis {km} km, wo die kürzere endet",
+  "compare.play": "Abspielen",
+  "compare.pause": "Pause",
+  "compare.replayTime": "Bewegungszeit",
+  "compare.replaySpeed": "Abspielgeschwindigkeit",
+  "compare.gap": "Abstand",
   "compare.splits": "Splits",
   "compare.splitsSub": "Pro Kilometer, Bewegungszeit",
   "compare.notComparable": "Diese Aktivitäten lassen sich nicht vergleichen: Bei einer fehlt die aufgezeichnete Distanz oder die FIT-Datei ist noch nicht geladen.",
   "help.compare_moving":
     "Zeit in Bewegung: Stopps (Ampel, Auto-Pause) zählen nicht, sie gehen also keiner der beiden Aktivitäten verloren.",
   "help.compare_lead":
-    "Über null liegt A an dieser Stelle vorn, darunter B. Steigt die Kurve, holt A dort Zeit heraus. Beide Aktivitäten liegen auf der Distanz von A: Hat GPS eine etwas länger gemessen, wird B passend gestreckt, damit dieselbe Stelle der Strecke übereinander liegt.",
+    "Über null liegt A an dieser Stelle vorn, darunter B. Steigt die Kurve, holt A dort Zeit heraus. Beide werden über die Distanz gezeigt, die sie tatsächlich gemessen haben, ohne Strecken: Hat GPS eine länger gemessen, enden ihre Kurven weiter rechts, und der Vorsprung wird bis zum Ende der kürzeren gezeigt.",
   "activities.np": "NP",
   "activities.decoupling": "Aerobe Entkopplung",
   "activities.steady": "Stabil (< 5 %)",
@@ -633,6 +668,19 @@ const de: Record<Key, string> = {
   "activities.curveSub": "Bester Durchschnitt je Dauer in dieser Aktivität",
   "activities.laps": "Runden",
   "activities.pace": "Pace",
+  "activities.cadence": "Kadenz",
+  "activities.cadenceChart": "Kadenz (spm)",
+  "activities.spm": "spm",
+  "activities.hrLimitLabel": "Grenze {bpm}",
+  "activities.setHrLimit": "HF-Grenze festlegen",
+  "activities.aboveLimit": "Über HF-Grenze",
+  "activities.aboveLimitHint": "{pct} % der Zeit über {bpm} bpm",
+  "activities.decouplingSubPace": "Meter pro Herzschlag, gleitender 5-Minuten-Schnitt. Gestrichelt: Schnitt jeder Hälfte.",
+  "activities.decouplingSubPower": "Watt pro Herzschlag, gleitender 5-Minuten-Schnitt. Gestrichelt: Schnitt jeder Hälfte.",
+  "activities.efPace": "m/Herzschlag",
+  "activities.efPower": "W/bpm",
+  "activities.firstHalf": "1. Hälfte",
+  "activities.secondHalf": "2. Hälfte",
 
   "insights.title": "Was hängt womit zusammen",
   "insights.sub": "Pearson-Korrelation über {days} Tage. Korrelation, keine Ursache. Zelle anklicken für das Streudiagramm.",
@@ -704,8 +752,12 @@ const de: Record<Key, string> = {
   "account.viaHa": "über Home Assistant",
   "account.signOut": "Abmelden",
   "account.prefsTitle": "Darstellung",
-  "account.prefsSub": "Wird in diesem Browser gespeichert.",
+  "account.prefsSub": "Wird mit deinem Konto gespeichert und gilt in jedem Browser.",
   "account.startTab": "Startseite",
+  "account.hrLimitsTitle": "Herzfrequenz-Obergrenzen",
+  "account.hrLimitsSub": "Obergrenze je Sportart, als Linie in den Herzfrequenz-Diagrammen. Leer lassen für keine Grenze. Wird mit deinem Konto gespeichert.",
+  "account.hrLimitsSave": "Grenzen speichern",
+  "account.hrLimitsSaved": "Grenzen gespeichert.",
   "account.delete": "Konto und Daten löschen",
   "account.deleteConfirm": "Löscht dein Konto, den API-Key und alle synchronisierten Daten endgültig. Zum Bestätigen „{name}“ eingeben.",
 
@@ -719,6 +771,7 @@ const de: Record<Key, string> = {
   "err.wrong_current_password": "Aktuelles Passwort ist falsch",
   "err.key_format": "Das sieht nicht nach einem API-Key aus",
   "err.key_rejected": "Garmin hat diesen Key abgelehnt",
+  "err.hr_limit": "Herzfrequenz-Grenzen müssen ganze Zahlen zwischen 60 und 240 sein",
   "err.key_verify_failed": "Garmin war zur Prüfung des Keys nicht erreichbar. Bitte später erneut versuchen.",
 
   "help.readiness":
@@ -747,9 +800,13 @@ const de: Record<Key, string> = {
   "help.meanmax":
     "Der beste Durchschnitt, den du für jede Dauer gehalten hast, z. B. deine beste 5-Minuten-Leistung. Berechnet aus den sekündlichen FIT-Daten. Durchgezogen: gewählter Zeitraum, gestrichelt: Bestwerte der letzten 2 Jahre. Je näher durchgezogen an gestrichelt, desto näher bist du an deiner Bestform.",
   "help.decoupling":
-    "Aerobe Entkopplung (Pa:HR): vergleicht Leistung bzw. Tempo pro Herzschlag in der ersten und zweiten Hälfte. Unter 5 %: Puls blieb im Verhältnis zur Leistung stabil, gute aerobe Ausdauer für diese Belastung. Über 5 %: Puls ist gedriftet (Ermüdung, Hitze, Flüssigkeitsmangel). Nur bei gleichmäßigen Einheiten ab etwa einer Stunde aussagekräftig.",
+    "Aerobe Entkopplung (Pa:HR): vergleicht Leistung pro Herzschlag in der ersten und zweiten Hälfte der Bewegungszeit. Läufe nutzen das Tempo, andere Sportarten die Leistung, falls aufgezeichnet. Unter 5 %: Puls blieb im Verhältnis zur Leistung stabil, gute aerobe Ausdauer für diese Belastung. Über 5 %: Puls ist gedriftet (Ermüdung, Hitze, Flüssigkeitsmangel). Negativ: Die zweite Hälfte war ökonomischer, z. B. nach langem Einlaufen. Nur bei gleichmäßigen Einheiten ab etwa einer Stunde aussagekräftig; Hügel und Intervalle verzerren den Wert. Wird ab 20 Minuten Bewegungszeit angezeigt.",
   "help.aerobic_te":
     "Garmins aerober Trainingseffekt (0–5): Wirkung der Einheit auf deine aerobe Fitness. 0–0,9 keiner, 1–1,9 gering, 2–2,9 erhaltend, 3–3,9 verbessernd, 4–4,9 stark verbessernd, 5 Überlastung.",
+  "help.cadence":
+    "Schritte pro Minute, gemittelt über die Zeit mit aufgezeichneten Schritten. Die Uhr speichert Doppelschritte (ein Fuß), daher wird der Wert verdoppelt. Höhere Kadenz bei gleichem Tempo heißt kürzere Schritte.",
+  "help.hr_limit":
+    "Zeit mit Herzfrequenz über der Obergrenze, die unter Konto für diese Sportart festgelegt ist. Pausen über 30 Sekunden zählen nicht.",
   "help.np":
     "Normalized Power: die gleichmäßige Leistung, die physiologisch so anstrengend gewesen wäre wie deine schwankende Leistung. Gewichtet harte Spitzen stärker als der einfache Durchschnitt.",
   "help.weight": "Letzte Wägung des Tages. Tage ohne Wägung bleiben leer.",
@@ -813,10 +870,8 @@ const SPORTS: Record<Lang, Record<string, string>> = {
 };
 
 export function detectLang(): Lang {
-  try {
-    const saved = localStorage.getItem("lang");
-    if (saved === "de" || saved === "en") return saved;
-  } catch {}
+  const saved = prefGet("lang");
+  if (saved === "de" || saved === "en") return saved;
   return navigator.language?.toLowerCase().startsWith("de") ? "de" : "en";
 }
 
@@ -861,9 +916,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const setLang = useCallback((l: Lang) => {
     currentLang = l;
     document.documentElement.lang = l;
-    try {
-      localStorage.setItem("lang", l);
-    } catch {}
+    prefSet("lang", l);
     setLangState(l);
   }, []);
 

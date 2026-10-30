@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- Heart rate limit per sport under **Account**: shown as a dashed line in the heart rate charts
+  of activities and comparisons, plus a tile with the time spent above it.
+- Runs: cadence in steps per minute as a tile and a chart, also in comparisons of two runs.
+- Comparison: replay both activities on the map by moving time, with play/pause, a time slider
+  and 10× to 120× speed. Shows how far each has got and the gap between them; dots on the
+  charts follow both positions.
+- Aerobic decoupling card: output per heartbeat over the activity, the mean of each half, and
+  pace (or power) and heart rate per half.
+
+### Changed
+
+- Settings are stored with your account instead of the browser: start page, date range and
+  language now apply on every device. Settings made in a browser before are taken over on the
+  next sign-in.
+- Comparison: activities are no longer stretched to the same length. Each is shown over the
+  distance it actually measured; the lead curve ends where the shorter one ends.
+- Aerobic decoupling: runs always use pace, also when the watch records running power. Halves
+  are split by moving time and records weighted by duration, so smart recording no longer skews
+  it. Shown from 20 minutes of moving time instead of 600 records.
+
+### Fixed
+
+- Help popovers and tooltips no longer disappear behind the route map.
+
 ## 0.4.0
 
 ### Added

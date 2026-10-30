@@ -72,12 +72,51 @@ export const line = (name: string, data: (string | number | null)[][], color: st
   ...extra,
 });
 
+/** Dashed horizontal line at an upper limit, e.g. the heart rate limit for a sport. */
+export const limitLine = (value: number, color: string, label: string) => ({
+  silent: true,
+  symbol: "none",
+  label: { formatter: label, position: "insideEndTop", color, fontSize: 11 },
+  lineStyle: { color, type: "dashed" },
+  data: [{ yAxis: value }],
+});
+
+/** y-axis max that keeps a limit line in view even when the data stays below it. */
+export const maxWithLimit = (limit: number | null) => (limit ? (v: { max: number }) => Math.max(v.max, limit + 3) : undefined);
+
+/** Dot on a line series at an x value, e.g. a replay position; colored with a theme token. */
+export interface Mark {
+  x: number;
+  /** Index of the series the dot sits on. */
+  series: number;
+  color: keyof Tokens;
+}
+
+type XY = (number | string | null)[];
+
+/** y of an [x, y] series at `x`, interpolated between neighbours; null in gaps or outside the data. */
+function yAt(data: XY[], x: number): number | null {
+  let lo = 0;
+  let hi = data.length - 1;
+  if (hi < 0 || x < (data[0][0] as number) || x > (data[hi][0] as number)) return null;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if ((data[mid][0] as number) <= x) lo = mid;
+    else hi = mid;
+  }
+  const [x0, y0] = data[lo] as [number, number | null];
+  const [x1, y1] = data[hi] as [number, number | null];
+  if (y0 === null || y1 === null) return y0 ?? y1;
+  return x1 > x0 ? y0 + ((y1 - y0) * (x - x0)) / (x1 - x0) : y0;
+}
+
 export function Chart({
   option,
   height = 240,
   group,
   onClick,
   onHover,
+  marks,
 }: {
   option: (t: Tokens) => object;
   height?: number;
@@ -85,9 +124,13 @@ export function Chart({
   onClick?: (p: echarts.ECElementEvent) => void;
   /** x-axis value under the crosshair, null when the pointer leaves. */
   onHover?: (x: number | null) => void;
+  /** Cheap to update every frame: only moves graphic elements, the option is not rebuilt. */
+  marks?: Mark[];
 }) {
   const el = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
+  const seriesData = useRef<XY[][]>([]);
+  const markCount = useRef(0);
   const t = useTokens();
   const { lang } = useI18n();
 
@@ -104,12 +147,40 @@ export function Chart({
 
   useEffect(() => {
     if (!chart.current) return;
-    chart.current.setOption(option(t) as echarts.EChartsOption, true);
+    const opt = option(t) as echarts.EChartsOption;
+    seriesData.current = ((opt.series ?? []) as { data?: XY[] }[]).map((s) => s.data ?? []);
+    // notMerge drops the graphic elements; the marks effect below redraws them.
+    markCount.current = 0;
+    chart.current.setOption(opt, true);
     if (group) {
       chart.current.group = group;
       echarts.connect(group);
     }
   }, [option, t, group, lang]);
+
+  // Declared after the option effect, so it runs after a rebuild and puts the marks back.
+  useEffect(() => {
+    const c = chart.current;
+    if (!c) return;
+    const list = marks ?? [];
+    const graphic: object[] = list.map((m, i) => {
+      const y = yAt(seriesData.current[m.series] ?? [], m.x);
+      if (y === null) return { id: `mark-${i}`, type: "circle", invisible: true };
+      const [cx, cy] = c.convertToPixel({ seriesIndex: m.series }, [m.x, y]) as number[];
+      return {
+        id: `mark-${i}`,
+        type: "circle",
+        silent: true,
+        invisible: false,
+        z: 50,
+        shape: { cx, cy, r: 5 },
+        style: { fill: t[m.color], stroke: t.surface, lineWidth: 2 },
+      };
+    });
+    for (let i = list.length; i < markCount.current; i++) graphic.push({ id: `mark-${i}`, $action: "remove" });
+    markCount.current = list.length;
+    if (graphic.length) c.setOption({ graphic });
+  }, [marks, option, t, lang]);
 
   useEffect(() => {
     if (!chart.current || !onClick) return;
