@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useCallback, useContext } from "react";
 import type { PageProps } from "../App";
-import { type DayData, type DayMetric, fmtDuration, type Point, useApi } from "../api";
+import { type DayData, type DayMetric, fmtDuration, type Night, type Point, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, type T, useI18n } from "../i18n";
 import { CardTitle, Info } from "../ui";
@@ -210,6 +210,57 @@ function Progress({ label, value, goal, help }: { label: string; value: number; 
   );
 }
 
+/** Wall clock of a local-as-UTC timestamp. */
+const clock = (ms: number) => new Date(ms).toISOString().slice(11, 16);
+
+/** Sleep window on a clock axis with the overnight heart rate. */
+function NightView({ date, refreshKey }: { date: string; refreshKey: number }) {
+  const { t, lang } = useI18n();
+  const { data: n } = useApi<Night | null>(`night?date=${date}`, [refreshKey]);
+  const option = useCallback(
+    (tk: Tokens) => {
+      const b = base(tk);
+      return {
+        ...b,
+        // Timestamps already carry the local offset.
+        useUTC: true,
+        grid: { ...(b.grid as object), top: 8, bottom: 24, left: 36 },
+        tooltip: {
+          ...(b.tooltip as object),
+          formatter: (ps: { value: [number, number] }[]) => `${clock(ps[0].value[0])} · ${ps[0].value[1]} bpm`,
+        },
+        xAxis: {
+          ...(b.xAxis as object),
+          type: "time" as const,
+          min: n!.hr[0]?.[0] ?? n!.start,
+          max: n!.hr.at(-1)?.[0] ?? n!.end,
+          axisLabel: { color: tk.muted, fontSize: 11, formatter: (v: number) => clock(v) },
+        },
+        yAxis: { ...(b.yAxis as object), type: "value" as const },
+        series: [
+          line(t("day.nightHr"), n!.hr, tk.s2, {
+            markArea: {
+              silent: true,
+              itemStyle: { color: tk.s1, opacity: 0.1 },
+              data: [[{ xAxis: n!.start }, { xAxis: n!.end }]],
+            },
+          }),
+        ],
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [n, lang],
+  );
+  if (!n) return null;
+  return (
+    <>
+      <p className="sub">{t("day.night", { from: clock(n.start), to: clock(n.end), dur: hm((n.end - n.start) / 3_600_000) })}</p>
+      {n.hr.length > 1 && <Chart option={option} height={140} />}
+      {n.hrError && <p className="sub">{t("day.nightHrError")}</p>}
+    </>
+  );
+}
+
 /** Last night's HRV against Garmin's balanced range. */
 function HrvRange({ v, lo, hi }: { v: number; lo: number; hi: number }) {
   const min = Math.min(lo, v) * 0.85;
@@ -368,6 +419,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
             <div className="card span-6">
               <CardTitle title={t("day.sleep")} sub={t("day.sleepSub")} help="help.sleep_stages" />
+              <NightView date={date} refreshKey={refreshKey} />
               <Stack
                 fmt={hm}
                 parts={[

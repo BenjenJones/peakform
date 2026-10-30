@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+### Added
+
+- **Day** tab: the sleep card shows when you slept (bedtime, wake-up, time in bed) and your
+  overnight heart rate on a clock axis. Garmin's Personal API only shares stage totals, not when
+  each stage happened; restless phases and waking show up as heart rate peaks instead.
+- Choose the start page under **Account** → Display. Stored per browser.
+
+### Fixed
+
+- The sync button now reacts right away: spinner, "Syncing…" and a pulsing status dot while the
+  sync runs, and an error message if it fails to start.
+
 ## 0.2.0
 
 ### Added

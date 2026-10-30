@@ -71,6 +71,18 @@ nav.tabs a.active { background: var(--surface); color: var(--ink); box-shadow: 0
 }
 .btn:hover { background: var(--hover); }
 .btn[disabled] { opacity: 0.5; cursor: default; }
+.btn[aria-busy="true"] { opacity: 0.8; display: inline-flex; align-items: center; gap: 6px; }
+.spinner {
+  width: 12px; height: 12px; border-radius: 50%; display: inline-block;
+  border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.8s linear infinite;
+}
+.dot.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 2.4s; }
+  .dot.pulse { animation: none; }
+}
 .chip { font-size: 12px; color: var(--ink-2); display: inline-flex; gap: 6px; align-items: center; }
 .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 

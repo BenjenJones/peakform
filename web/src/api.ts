@@ -88,6 +88,14 @@ export interface DayData {
   activities: ActivityLite[];
 }
 
+/** Sleep window and overnight heart rate; times are local wall clock encoded as UTC epoch ms. */
+export interface Night {
+  start: number;
+  end: number;
+  hr: [number, number][];
+  hrError: string | null;
+}
+
 export interface Streams {
   t: number[]; hr: (number | null)[]; power: (number | null)[]; speed: (number | null)[];
   cadence: (number | null)[]; alt: (number | null)[]; dist: (number | null)[];

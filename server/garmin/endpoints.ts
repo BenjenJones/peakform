@@ -40,6 +40,9 @@ export const singleEndpoints = {
   hrZones: "/biometric-service/heartRateZones/v2",
 };
 
+// One calendar day in 2-minute samples; fetched per night on demand, not synced.
+export const dailyHeartRate = "/wellness-service/wellness/dailyHeartRate";
+
 export const activitySearch = "/activitylist-service/activities/search/activities";
 export const activityDetail = (id: number | string) => `/activity-service/activity/${id}`;
 export const activityDownload = (id: number | string) => `/download-service/files/activity/${id}`;

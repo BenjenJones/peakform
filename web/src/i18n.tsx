@@ -19,6 +19,9 @@ const en = {
   "sync.done": "Synced {time} ({status})",
   "sync.never": "Not synced",
   "sync.now": "Sync now",
+  "sync.busy": "Syncing…",
+  "sync.starting": "Starting sync…",
+  "sync.failed": "Sync failed to start: {error}",
   "sync.status.ok": "ok",
   "sync.status.partial": "partial",
   "sync.status.error": "error",
@@ -105,6 +108,9 @@ const en = {
   "day.verdict.low": "Below baseline: favour easy training or rest",
   "day.sleep": "Sleep",
   "day.sleepSub": "Night ending on this day",
+  "day.night": "{from} – {to} · {dur} in bed",
+  "day.nightHr": "Heart rate",
+  "day.nightHrError": "Overnight heart rate could not be loaded from Garmin.",
   "day.recovery": "Recovery",
   "day.recoverySub": "HRV, resting heart rate and Body Battery",
   "day.hrvRange": "Last night's HRV in your balanced range",
@@ -294,6 +300,9 @@ const en = {
   "account.signedInAs": "Signed in as",
   "account.viaHa": "via Home Assistant",
   "account.signOut": "Sign out",
+  "account.prefsTitle": "Display",
+  "account.prefsSub": "Stored in this browser.",
+  "account.startTab": "Start page",
   "account.delete": "Delete account and data",
   "account.deleteConfirm": 'This permanently deletes your account, API key and all synced data. Type "{name}" to confirm.',
 
@@ -344,7 +353,7 @@ const en = {
     "Normalized Power: the steady power that would have cost the same physiologically as your variable power. Weights hard surges more than a plain average.",
   "help.weight": "Last weigh-in of each day. Days without a weigh-in stay empty.",
   "help.sleep_stages":
-    "Deep: physical recovery. Light: the largest share, transition between stages. REM: mental recovery and memory. Awake: wake periods during the night; short ones are normal, frequent or long ones (e.g. after alcohol or late meals) cost recovery. The watch estimates stages from heart rate, HRV and movement, so trends say more than single nights.",
+    "Deep: physical recovery. Light: the largest share, transition between stages. REM: mental recovery and memory. Awake: wake periods during the night; short ones are normal, frequent or long ones (e.g. after alcohol or late meals) cost recovery. The watch estimates stages from heart rate, HRV and movement, so trends say more than single nights. Garmin does not share when each stage happened, only the totals; the curve shows the overnight heart rate instead, where restless phases and waking stand out as peaks.",
   "help.hrv_chart":
     "Line: average HRV of each night. Band: Garmin's personal balanced range, based on your last weeks. Values inside are normal for you; several days below suggest incomplete recovery.",
   "help.bb_range":
@@ -383,6 +392,9 @@ const de: Record<Key, string> = {
   "sync.done": "Synchronisiert {time} ({status})",
   "sync.never": "Noch nicht synchronisiert",
   "sync.now": "Jetzt synchronisieren",
+  "sync.busy": "Synchronisiere…",
+  "sync.starting": "Starte Synchronisierung…",
+  "sync.failed": "Synchronisierung konnte nicht starten: {error}",
   "sync.status.ok": "ok",
   "sync.status.partial": "teilweise",
   "sync.status.error": "Fehler",
@@ -466,6 +478,9 @@ const de: Record<Key, string> = {
   "day.verdict.low": "Unter Basis: locker trainieren oder ruhen",
   "day.sleep": "Schlaf",
   "day.sleepSub": "Nacht zu diesem Tag",
+  "day.night": "{from} – {to} · {dur} im Bett",
+  "day.nightHr": "Puls",
+  "day.nightHrError": "Nachtpuls konnte nicht von Garmin geladen werden.",
   "day.recovery": "Erholung",
   "day.recoverySub": "HRV, Ruhepuls und Body Battery",
   "day.hrvRange": "HRV der letzten Nacht in deinem ausgeglichenen Bereich",
@@ -648,6 +663,9 @@ const de: Record<Key, string> = {
   "account.signedInAs": "Angemeldet als",
   "account.viaHa": "über Home Assistant",
   "account.signOut": "Abmelden",
+  "account.prefsTitle": "Darstellung",
+  "account.prefsSub": "Wird in diesem Browser gespeichert.",
+  "account.startTab": "Startseite",
   "account.delete": "Konto und Daten löschen",
   "account.deleteConfirm": "Löscht dein Konto, den API-Key und alle synchronisierten Daten endgültig. Zum Bestätigen „{name}“ eingeben.",
 
@@ -696,7 +714,7 @@ const de: Record<Key, string> = {
     "Normalized Power: die gleichmäßige Leistung, die physiologisch so anstrengend gewesen wäre wie deine schwankende Leistung. Gewichtet harte Spitzen stärker als der einfache Durchschnitt.",
   "help.weight": "Letzte Wägung des Tages. Tage ohne Wägung bleiben leer.",
   "help.sleep_stages":
-    "Tief: körperliche Erholung. Leicht: der größte Anteil, Übergang zwischen den Phasen. REM: geistige Erholung und Gedächtnis. Wach: Wachphasen in der Nacht; kurze sind normal, häufige oder lange (z. B. nach Alkohol oder spätem Essen) kosten Erholung. Die Uhr schätzt die Phasen aus Herzfrequenz, HRV und Bewegung, daher sagen Trends mehr als einzelne Nächte.",
+    "Tief: körperliche Erholung. Leicht: der größte Anteil, Übergang zwischen den Phasen. REM: geistige Erholung und Gedächtnis. Wach: Wachphasen in der Nacht; kurze sind normal, häufige oder lange (z. B. nach Alkohol oder spätem Essen) kosten Erholung. Die Uhr schätzt die Phasen aus Herzfrequenz, HRV und Bewegung, daher sagen Trends mehr als einzelne Nächte. Wann welche Phase war, gibt Garmin nicht heraus, nur die Summen; die Kurve zeigt stattdessen den Nachtpuls, in dem unruhige Phasen und Aufwachen als Spitzen auffallen.",
   "help.hrv_chart":
     "Linie: durchschnittliche HRV jeder Nacht. Fläche: Garmins persönlicher ausgeglichener Bereich, berechnet aus deinen letzten Wochen. Werte darin sind normal für dich; mehrere Tage darunter deuten auf unvollständige Erholung.",
   "help.bb_range":

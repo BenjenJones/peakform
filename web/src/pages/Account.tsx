@@ -1,11 +1,13 @@
 import { type FormEvent, useState } from "react";
 import { type Me, send } from "../api";
 import { errorText, fmtDate, useI18n } from "../i18n";
+import { prefSet, startTab, type Tab, TABS } from "../prefs";
 
 export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
   return (
     <div className="grid">
       <GarminKey me={me} onChange={onChange} />
+      <Prefs />
       {me.mode === "local" && <Password />}
       <Danger me={me} onChange={onChange} />
     </div>
@@ -78,6 +80,31 @@ function GarminKey({ me, onChange }: { me: Me; onChange: () => void }) {
         )}
       </div>
     </form>
+  );
+}
+
+function Prefs() {
+  const { t } = useI18n();
+  const [start, setStart] = useState(startTab);
+  const change = (v: Tab) => {
+    setStart(v);
+    prefSet("startTab", v);
+  };
+  return (
+    <div className="card span-6">
+      <h2>{t("account.prefsTitle")}</h2>
+      <p className="sub">{t("account.prefsSub")}</p>
+      <label className="controls">
+        {t("account.startTab")}
+        <select value={start} onChange={(e) => change(e.target.value as Tab)}>
+          {TABS.map((id) => (
+            <option key={id} value={id}>
+              {t(`tab.${id}`)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "./api";
-import { I18nProvider, type Key, type Lang, useI18n } from "./i18n";
+import { errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
 import { Account } from "./pages/Account";
 import { Activities } from "./pages/Activities";
 import { Data } from "./pages/Data";
@@ -10,9 +10,9 @@ import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
 import { Recovery } from "./pages/Recovery";
 import { Training } from "./pages/Training";
+import { prefGet, prefSet, startTab, TABS } from "./prefs";
 
 // Hash routing: no server-side route knowledge needed behind the ingress proxy.
-const TABS = ["overview", "day", "recovery", "training", "activities", "insights", "data", "account"] as const;
 
 export interface Status {
   configured: boolean;
@@ -58,9 +58,12 @@ function Root() {
 function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
   const hash = useHash();
   const [tab, ...rest] = hash.split("/");
-  const [range, setRange] = useState(() => Number(localStorageGet("range") ?? 90));
+  const [range, setRange] = useState(() => Number(prefGet("range") ?? 90));
   const [status, setStatus] = useState<Status | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Read once: changing the setting must not navigate away from the open tab.
+  const [home] = useState(startTab);
+  const pollRef = useRef<() => Promise<void>>(async () => {});
 
   useEffect(() => {
     let wasRunning = false;
@@ -73,6 +76,7 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
           wasRunning = s.sync.running;
         })
         .catch(() => {});
+    pollRef.current = poll;
     poll();
     const id = setInterval(poll, 4000);
     return () => clearInterval(id);
@@ -80,13 +84,11 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
 
   const setRangePersist = (n: number) => {
     setRange(n);
-    try {
-      localStorage.setItem("range", String(n));
-    } catch {}
+    prefSet("range", String(n));
   };
 
   const { t, lang, setLang } = useI18n();
-  const active = TABS.find((id) => id === tab) ?? "overview";
+  const active = TABS.find((id) => id === tab) ?? home;
   const props = { range, refreshKey, status };
 
   return (
@@ -112,7 +114,7 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
             <option value="de">DE</option>
             <option value="en">EN</option>
           </select>
-          <SyncChip status={status} />
+          <SyncChip status={status} refresh={() => pollRef.current()} />
         </div>
       </header>
 
@@ -134,43 +136,60 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
   );
 }
 
-function localStorageGet(k: string) {
-  try {
-    return localStorage.getItem(k);
-  } catch {
-    return null;
-  }
-}
-
-function SyncChip({ status }: { status: Status | null }) {
+function SyncChip({ status, refresh }: { status: Status | null; refresh: () => Promise<void> }) {
   const { t, lang } = useI18n();
+  // Covers the gap between the click and the status poll that reports the running sync.
+  const [starting, setStarting] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
   if (!status) return null;
   const { sync } = status;
-  const color = sync.running
-    ? "var(--s1)"
-    : sync.lastRun?.status === "ok"
-      ? "var(--good)"
-      : sync.lastRun?.status === "partial"
-        ? "var(--warning)"
+  const busy = starting || sync.running;
+
+  const start = async () => {
+    setStarting(true);
+    setFailed(null);
+    try {
+      await api("sync", { method: "POST" });
+      await refresh();
+    } catch (e) {
+      setFailed(errorText(t, e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const color = failed
+    ? "var(--critical)"
+    : busy
+      ? "var(--s1)"
+      : sync.lastRun?.status === "ok"
+        ? "var(--good)"
+        : sync.lastRun?.status === "partial"
+          ? "var(--warning)"
+          : sync.lastRun
+            ? "var(--critical)"
+            : "var(--muted)";
+  const text = failed
+    ? t("sync.failed", { error: failed })
+    : sync.running
+      ? t("sync.running", { step: sync.step })
+      : starting
+        ? t("sync.starting")
         : sync.lastRun
-          ? "var(--critical)"
-          : "var(--muted)";
-  const text = sync.running
-    ? t("sync.running", { step: sync.step })
-    : sync.lastRun
-      ? t("sync.done", {
-          time: new Date(sync.lastRun.finished).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }),
-          status: t(`sync.status.${sync.lastRun.status}` as Key),
-        })
-      : t("sync.never");
+          ? t("sync.done", {
+              time: new Date(sync.lastRun.finished).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }),
+              status: t(`sync.status.${sync.lastRun.status}` as Key),
+            })
+          : t("sync.never");
   return (
     <>
-      <span className="chip">
-        <span className="dot" style={{ background: color }} />
+      <span className="chip" role="status">
+        <span className={busy ? "dot pulse" : "dot"} style={{ background: color }} />
         {text}
       </span>
-      <button className="btn" disabled={sync.running || !status.configured} onClick={() => api("sync", { method: "POST" })}>
-        {t("sync.now")}
+      <button className="btn" disabled={busy || !status.configured} aria-busy={busy} onClick={start}>
+        {busy && <span className="spinner" aria-hidden />}
+        {busy ? t("sync.busy") : t("sync.now")}
       </button>
     </>
   );
