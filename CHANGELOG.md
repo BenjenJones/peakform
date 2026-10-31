@@ -10,7 +10,8 @@
 - Tap any value tile on **Day** and **Overview** (also the sleep and stress phases and the step
   and intensity bars) to open its history as a big chart: 7 days to 2 years, 7-day average,
   pinch/scroll zoom with a slider, average, min and max. Tapping a point opens that day. The
-  heart rate tiles also offer 1 day, which shows that day's heart rate curve.
+  heart rate tiles also offer 1 day, which shows that day's heart rate curve. The chart opens on
+  the shortest range.
 - Every chart on **Day**, **Overview**, **Recovery**, **Training**, activities and comparisons has
   an enlarge button in its top right corner.
 - The big chart opens as a dialog; a click next to it, Escape or the close button closes it. On

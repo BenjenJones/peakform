@@ -75,7 +75,9 @@ function rolling7(pts: Point[]) {
 /** A metric's history up to `date`, full-size, with a range picker. Tapping a point opens that day. */
 export function MetricDialog({ spec, date, onClose }: { spec: MetricSpec; date: string; onClose: () => void }) {
   const { t, lang } = useI18n();
-  const [days, setDays] = useState(90);
+  const ranges = RANGES.filter((n) => n > 1 || spec.intraday);
+  // Opens on the closest view; longer ranges are one tap away.
+  const [days, setDays] = useState(ranges[0]);
   const day = days === 1;
   const from = shift(date, -(days - 1));
   const { data } = useApi<unknown>(day ? null : sourcePath(spec.source, from, date), []);
@@ -165,7 +167,7 @@ export function MetricDialog({ spec, date, onClose }: { spec: MetricSpec; date: 
       onClose={onClose}
       tools={
         <div className="seg" role="group">
-          {RANGES.filter((n) => n > 1 || spec.intraday).map((n) => (
+          {ranges.map((n) => (
             <button key={n} type="button" className="btn" aria-pressed={n === days} onClick={() => setDays(n)}>
               {n < 365 ? t("zoom.days", { n }) : t("zoom.years", { n: n / 365 })}
             </button>
