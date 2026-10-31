@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { type CompareCandidate, type CompareCandidates, type Comparison, type CompareProfile, fmtDuration, fmtPace, isRun, useApi } from "../api";
 import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
 import { fmtDate, fmtNum, useI18n } from "../i18n";
+import { type MetricKey, MetricIcon } from "../icons";
 import { ReplayControls, useReplay } from "../Replay";
 import { type LatLon, latLons, positionAt, TrackMap } from "../RouteMap";
 import { CardTitle, Info } from "../ui";
@@ -167,12 +168,12 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
   const charts = useMemo(() => {
     if (!c) return [];
     const both = (k: "speed" | "hr" | "cadence" | "power" | "alt") => [c.profiles.a, c.profiles.b].every((p) => p[k].some((v) => (v ?? 0) > 0));
-    const out: { title: string; option: (tk: Tokens) => object }[] = [];
-    if (both("speed")) out.push({ title: t("activities.paceChart"), option: chart("speed", fmtPace) });
-    if (both("hr")) out.push({ title: t("activities.hrChart"), option: chart("hr") });
-    if (isRun(c.a.type) && isRun(c.b.type) && both("cadence")) out.push({ title: t("activities.cadenceChart"), option: chart("cadence") });
-    if (both("power")) out.push({ title: t("activities.powerChart"), option: chart("power") });
-    if (both("alt")) out.push({ title: t("activities.elevChart"), option: chart("alt") });
+    const out: { title: string; icon: MetricKey; option: (tk: Tokens) => object }[] = [];
+    if (both("speed")) out.push({ title: t("activities.paceChart"), icon: "pace", option: chart("speed", fmtPace) });
+    if (both("hr")) out.push({ title: t("activities.hrChart"), icon: "hr", option: chart("hr") });
+    if (isRun(c.a.type) && isRun(c.b.type) && both("cadence")) out.push({ title: t("activities.cadenceChart"), icon: "cadence", option: chart("cadence") });
+    if (both("power")) out.push({ title: t("activities.powerChart"), icon: "power", option: chart("power") });
+    if (both("alt")) out.push({ title: t("activities.elevChart"), icon: "elev", option: chart("alt") });
     return out;
   }, [c, chart, lang]);
 
@@ -244,6 +245,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
 
       <div className="card">
         <CardTitle
+          icon="time"
           title={t("compare.lead")}
           sub={
             Math.abs(c.a.distanceM - c.b.distanceM) >= 10
@@ -257,7 +259,10 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
 
       {hasMap && (
         <div className="card span-4 route-card">
-          <h2>{t("activities.route")}</h2>
+          <h2>
+            <MetricIcon m="route" />
+            {t("activities.route")}
+          </h2>
           <TrackMap tracks={tracks} hover={hover} />
           <ReplayControls r={player} />
           <div className="legend" style={{ marginTop: 8 }}>
@@ -279,14 +284,17 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
       <div className={`card ${hasMap ? "span-8" : ""}`}>
         {charts.map((ch) => (
           <div key={ch.title}>
-            <h2>{ch.title}</h2>
+            <h2>
+              <MetricIcon m={ch.icon} />
+              {ch.title}
+            </h2>
             <Chart option={ch.option} height={150} group="cmp" onHover={setHoverX} marks={marks} />
           </div>
         ))}
       </div>
 
       <div className="card scroll">
-        <CardTitle title={t("compare.splits")} sub={t("compare.splitsSub")} />
+        <CardTitle icon="splits" title={t("compare.splits")} sub={t("compare.splitsSub")} />
         <table>
           <thead>
             <tr>

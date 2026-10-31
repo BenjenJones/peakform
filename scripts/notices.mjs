@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Entry points of the web bundle. Keep in sync with the packages imported in web/src.
-const WEB = ["react", "react-dom", "echarts", "leaflet"];
+const WEB = ["react", "react-dom", "echarts", "leaflet", "@tabler/icons-react"];
 
 const root = JSON.parse(readFileSync("package.json", "utf8"));
 const seen = new Map();

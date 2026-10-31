@@ -3,15 +3,16 @@ import type { PageProps } from "../App";
 import { type ActivityLite, daysAgo, fmtDuration, type LoadDay, type Point, type Readiness, type SeriesMap, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, useI18n } from "../i18n";
+import { type MetricKey, MetricIcon } from "../icons";
 import { CardTitle, Info } from "../ui";
 
-const TILE_KEYS: { key: string; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
-  { key: "hrv_night", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },
-  { key: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
-  { key: "sleep_hours", help: "help.sleep", unit: "h", digits: 1, higherIsBetter: true },
-  { key: "sleep_score", help: "help.sleep_score", unit: "", digits: 0, higherIsBetter: true },
-  { key: "bb_high", help: "help.bb", unit: "", digits: 0, higherIsBetter: true },
-  { key: "stress_avg", help: "help.stress", unit: "", digits: 0, higherIsBetter: false },
+const TILE_KEYS: { key: string; icon: MetricKey; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
+  { key: "hrv_night", icon: "hrv", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },
+  { key: "rhr", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
+  { key: "sleep_hours", icon: "sleep", help: "help.sleep", unit: "h", digits: 1, higherIsBetter: true },
+  { key: "sleep_score", icon: "sleepScore", help: "help.sleep_score", unit: "", digits: 0, higherIsBetter: true },
+  { key: "bb_high", icon: "bodyBattery", help: "help.bb", unit: "", digits: 0, higherIsBetter: true },
+  { key: "stress_avg", icon: "stress", help: "help.stress", unit: "", digits: 0, higherIsBetter: false },
 ];
 
 const latest = (s: Point[] | undefined) => s?.[s.length - 1];
@@ -68,7 +69,7 @@ export function Overview({ range, refreshKey }: PageProps) {
   return (
     <div className="grid">
       <div className="card span-4">
-        <CardTitle title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
+        <CardTitle icon="readiness" title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
         {rd?.score == null ? (
           <div className="empty">{t("overview.readinessEmpty")}</div>
         ) : (
@@ -99,6 +100,7 @@ export function Overview({ range, refreshKey }: PageProps) {
             return (
               <div className="tile" key={k.key}>
                 <div className="label">
+                  <MetricIcon m={k.icon} />
                   {k.key === "bb_high" ? t("metric.body_battery") : metric(k.key)}
                   <Info help={k.help} />
                 </div>
@@ -123,10 +125,10 @@ export function Overview({ range, refreshKey }: PageProps) {
       </div>
 
       <div className="card span-8">
-        <CardTitle title={t("overview.fitnessFatigue")} sub={t("overview.fitnessFatigueSub")} help="help.fitness_fatigue" />
+        <CardTitle icon="fitness" title={t("overview.fitnessFatigue")} sub={t("overview.fitnessFatigueSub")} help="help.fitness_fatigue" />
         <Chart option={formOption} group="overview" />
         <div style={{ marginTop: 12 }}>
-          <CardTitle title={t("overview.form")} sub={t("overview.formSub")} help="help.tsb" />
+          <CardTitle icon="form" title={t("overview.form")} sub={t("overview.formSub")} help="help.tsb" />
         </div>
         <Chart option={tsbOption} height={160} group="overview" />
       </div>

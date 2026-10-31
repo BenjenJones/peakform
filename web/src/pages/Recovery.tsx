@@ -92,31 +92,31 @@ export function Recovery({ range, refreshKey }: PageProps) {
   return (
     <div className="grid">
       <div className="card">
-        <CardTitle title={tr("recovery.hrv")} sub={tr("recovery.hrvSub")} help="help.hrv_chart" />
+        <CardTitle icon="hrv" title={tr("recovery.hrv")} sub={tr("recovery.hrvSub")} help="help.hrv_chart" />
         <Chart option={hrv} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.rhr")} sub="bpm" help="help.rhr" />
+        <CardTitle icon="rhr" title={tr("recovery.rhr")} sub="bpm" help="help.rhr" />
         <Chart option={rhr} height={200} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.bb")} sub={tr("recovery.bbSub")} help="help.bb_range" />
+        <CardTitle icon="bodyBattery" title={tr("recovery.bb")} sub={tr("recovery.bbSub")} help="help.bb_range" />
         <Chart option={bb} height={200} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.stages")} sub={tr("recovery.stagesSub")} help="help.sleep_stages" />
+        <CardTitle icon="stages" title={tr("recovery.stages")} sub={tr("recovery.stagesSub")} help="help.sleep_stages" />
         <Chart option={sleep} height={220} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.score")} sub="0–100" help="help.sleep_score" />
+        <CardTitle icon="sleepScore" title={tr("recovery.score")} sub="0–100" help="help.sleep_score" />
         <Chart option={score} height={220} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.stress")} sub={tr("recovery.stressSub")} help="help.stress" />
+        <CardTitle icon="stress" title={tr("recovery.stress")} sub={tr("recovery.stressSub")} help="help.stress" />
         <Chart option={stress} height={200} group="recovery" />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("recovery.weight")} sub="kg" help="help.weight" />
+        <CardTitle icon="weight" title={tr("recovery.weight")} sub="kg" help="help.weight" />
         <Chart option={weight} height={200} group="recovery" />
       </div>
     </div>

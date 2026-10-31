@@ -1,5 +1,6 @@
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { type Key, useI18n } from "./i18n";
+import { type MetricKey, MetricIcon } from "./icons";
 
 /** Small "?" that explains a metric on hover, keyboard focus or tap. */
 export function Info({ help }: { help: Key }) {
@@ -78,10 +79,11 @@ export function Info({ help }: { help: Key }) {
 }
 
 /** Card heading with optional explanation and subtitle. */
-export function CardTitle({ title, sub, help, children }: { title: ReactNode; sub?: ReactNode; help?: Key; children?: ReactNode }) {
+export function CardTitle({ title, sub, help, icon, children }: { title: ReactNode; sub?: ReactNode; help?: Key; icon?: MetricKey; children?: ReactNode }) {
   return (
     <>
       <h2>
+        {icon && <MetricIcon m={icon} />}
         {title}
         {help && <Info help={help} />}
         {children}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { PageProps } from "../App";
 import { useApi } from "../api";
 import { fmtDate, type Key, locale, useI18n } from "../i18n";
+import { fieldIcon, MetricIcon } from "../icons";
 import { CardTitle } from "../ui";
 
 interface MetricsInfo {
@@ -54,7 +55,10 @@ export function Data({ status, refreshKey }: PageProps) {
           <tbody>
             {m?.curated.map((c) => (
               <tr key={c.key}>
-                <td>{metric(c.key)}</td>
+                <td>
+                  {fieldIcon(c.key) && <MetricIcon m={fieldIcon(c.key)!} />}
+                  {metric(c.key)}
+                </td>
                 <td className={c.resolved ? "" : "muted"} style={{ fontFamily: "monospace", fontSize: 12 }}>
                   {c.resolved ?? `${t("data.unresolved")} (${c.candidates.join(", ")})`}
                 </td>

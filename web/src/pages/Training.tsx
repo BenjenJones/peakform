@@ -128,21 +128,21 @@ export function Training({ range, refreshKey }: PageProps) {
   return (
     <div className="grid">
       <div className="card">
-        <CardTitle title={tr("training.load")} sub={tr("training.loadSub")} help="help.load" />
+        <CardTitle icon="load" title={tr("training.load")} sub={tr("training.loadSub")} help="help.load" />
         <Chart option={loadOpt} height={260} />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("training.acwr")} sub={tr("training.acwrSub")} help="help.acwr" />
+        <CardTitle icon="acwr" title={tr("training.acwr")} sub={tr("training.acwrSub")} help="help.acwr" />
         <Chart option={acwrOpt} height={220} />
       </div>
       <div className="card span-6">
-        <CardTitle title={tr("training.weekly")} sub={tr("training.weeklySub")} help="help.weekly" />
+        <CardTitle icon="weekly" title={tr("training.weekly")} sub={tr("training.weeklySub")} help="help.weekly" />
         <Chart option={weeklyOpt} height={220} />
       </div>
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <CardTitle title={tr("training.curve")} sub={tr("training.curveSub")} help="help.meanmax" />
+            <CardTitle icon="curve" title={tr("training.curve")} sub={tr("training.curveSub")} help="help.meanmax" />
           </div>
           <div className="controls">
             <select value={field} onChange={(e) => setField(e.target.value as CurveField)} aria-label={tr("data.metric")}>

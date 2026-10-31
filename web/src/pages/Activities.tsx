@@ -5,6 +5,7 @@ import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } fr
 import { fmtDate, fmtNum, type Key, useI18n } from "../i18n";
 import { ReplayControls, useReplay } from "../Replay";
 import { indexAt, RouteMap } from "../RouteMap";
+import { type MetricKey, MetricIcon, SportIcon } from "../icons";
 import { CardTitle, Info } from "../ui";
 import { Compare, ComparePicker } from "./Compare";
 
@@ -101,7 +102,10 @@ export function Activities({ range, refreshKey, selectedId, compareId }: PagePro
                 <tr key={a.id} className="click" onClick={() => (location.hash = `#/activities/${a.id}`)}>
                   <td>{fmtStart(a.start)}</td>
                   <td>{a.name}</td>
-                  <td className="muted">{sport(a.type)}</td>
+                  <td className="muted">
+                    <SportIcon type={a.type} />
+                    {sport(a.type)}
+                  </td>
                   <td className="num">{fmtDuration(a.durationS)}</td>
                   <td className="num">{a.distanceM ? fmtNum(a.distanceM / 1000, 2) + " km" : ""}</td>
                   <td className="num">{a.avgHr ? Math.round(a.avgHr) : ""}</td>
@@ -191,10 +195,11 @@ function ActivityDetail({ id }: { id: number }) {
   const charts = useMemo(() => {
     if (!thinned || !a) return [];
     const has = (k: keyof typeof thinned) => thinned[k].some((v) => (v ?? 0) > 0);
-    const out: { title: string; option: (t: Tokens) => object; color: keyof Tokens; action?: ReactNode }[] = [];
+    const out: { title: string; icon: MetricKey; option: (t: Tokens) => object; color: keyof Tokens; action?: ReactNode }[] = [];
     if (has("hr"))
       out.push({
         title: tr("activities.hrChart"),
+        icon: "hr",
         option: streamChart("hr", tr("training.hr"), "s2", undefined, a.hrLimit),
         color: "s2",
         action: a.hrLimit ? null : (
@@ -203,11 +208,11 @@ function ActivityDetail({ id }: { id: number }) {
           </a>
         ),
       });
-    if (has("power")) out.push({ title: tr("activities.powerChart"), option: streamChart("power", tr("training.power"), "s1"), color: "s1" });
-    if (has("speed")) out.push({ title: tr("activities.paceChart"), option: streamChart("speed", tr("activities.pace"), "s3", fmtPace), color: "s3" });
+    if (has("power")) out.push({ title: tr("activities.powerChart"), icon: "power", option: streamChart("power", tr("training.power"), "s1"), color: "s1" });
+    if (has("speed")) out.push({ title: tr("activities.paceChart"), icon: "pace", option: streamChart("speed", tr("activities.pace"), "s3", fmtPace), color: "s3" });
     if (run && has("cadence"))
-      out.push({ title: tr("activities.cadenceChart"), option: streamChart("cadence", tr("activities.cadence"), "s1"), color: "s1" });
-    if (has("alt")) out.push({ title: tr("activities.elevChart"), option: streamChart("alt", tr("activities.alt"), "s4"), color: "s4" });
+      out.push({ title: tr("activities.cadenceChart"), icon: "cadence", option: streamChart("cadence", tr("activities.cadence"), "s1"), color: "s1" });
+    if (has("alt")) out.push({ title: tr("activities.elevChart"), icon: "elev", option: streamChart("alt", tr("activities.alt"), "s4"), color: "s4" });
     return out;
   }, [thinned, streamChart, a, run, lang]);
 
@@ -283,18 +288,22 @@ function ActivityDetail({ id }: { id: number }) {
       <div className="card">
         <a href="#/activities" className="muted">{tr("activities.back")}</a>
         <h2 style={{ fontSize: 18, marginTop: 6 }}>{a.name}</h2>
-        <p className="sub">{fmtStart(a.start)} · {sport(a.type ?? "")}</p>
+        <p className="sub">
+          <SportIcon type={a.type} />
+          {fmtStart(a.start)} · {sport(a.type ?? "")}
+        </p>
         {a.streams?.dist.some((v) => (v ?? 0) > 0) && <ComparePicker id={id} />}
         <div className="tiles">
-          <Tile label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} />
-          {s.distance ? <Tile label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" /> : null}
-          {s.averageHR ? <Tile label={tr("activities.avgHr")} value={fmtNum(s.averageHR)} unit="bpm" /> : null}
-          {s.avgPower ? <Tile label={tr("activities.avgPower")} value={fmtNum(s.avgPower)} unit="W" /> : null}
-          {s.normPower ? <Tile label={tr("activities.np")} value={fmtNum(s.normPower)} unit="W" help="help.np" /> : null}
-          {s.elevationGain ? <Tile label={tr("activities.elev")} value={fmtNum(s.elevationGain)} unit="m" /> : null}
-          {cadence ? <Tile label={tr("activities.cadence")} value={fmtNum(cadence)} unit={tr("activities.spm")} help="help.cadence" /> : null}
+          <Tile icon="time" label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} />
+          {s.distance ? <Tile icon="distance" label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" /> : null}
+          {s.averageHR ? <Tile icon="hr" label={tr("activities.avgHr")} value={fmtNum(s.averageHR)} unit="bpm" /> : null}
+          {s.avgPower ? <Tile icon="power" label={tr("activities.avgPower")} value={fmtNum(s.avgPower)} unit="W" /> : null}
+          {s.normPower ? <Tile icon="np" label={tr("activities.np")} value={fmtNum(s.normPower)} unit="W" help="help.np" /> : null}
+          {s.elevationGain ? <Tile icon="elev" label={tr("activities.elev")} value={fmtNum(s.elevationGain)} unit="m" /> : null}
+          {cadence ? <Tile icon="cadence" label={tr("activities.cadence")} value={fmtNum(cadence)} unit={tr("activities.spm")} help="help.cadence" /> : null}
           {above ? (
             <Tile
+              icon="hrLimit"
               label={tr("activities.aboveLimit")}
               value={fmtDuration(above.above)}
               hint={tr("activities.aboveLimitHint", { pct: fmtNum(above.pct), bpm: a.hrLimit! })}
@@ -303,6 +312,7 @@ function ActivityDetail({ id }: { id: number }) {
           ) : null}
           {dec ? (
             <Tile
+              icon="decoupling"
               label={tr("activities.decoupling")}
               value={fmtNum(dec.pct, 1)}
               unit="%"
@@ -310,8 +320,8 @@ function ActivityDetail({ id }: { id: number }) {
               help="help.decoupling"
             />
           ) : null}
-          {s.aerobicTrainingEffect ? <Tile label={tr("activities.aerobicTe")} value={fmtNum(s.aerobicTrainingEffect, 1)} help="help.aerobic_te" /> : null}
-          {s.activityTrainingLoad ? <Tile label={tr("activities.load")} value={fmtNum(s.activityTrainingLoad)} help="help.load" /> : null}
+          {s.aerobicTrainingEffect ? <Tile icon="aerobicTe" label={tr("activities.aerobicTe")} value={fmtNum(s.aerobicTrainingEffect, 1)} help="help.aerobic_te" /> : null}
+          {s.activityTrainingLoad ? <Tile icon="load" label={tr("activities.load")} value={fmtNum(s.activityTrainingLoad)} help="help.load" /> : null}
         </div>
       </div>
 
@@ -323,7 +333,10 @@ function ActivityDetail({ id }: { id: number }) {
 
       {a.streams && a.streams.lat.some((v) => v !== null) && (
         <div className="card span-4 route-card">
-          <h2>{tr("activities.route")}</h2>
+          <h2>
+            <MetricIcon m="route" />
+            {tr("activities.route")}
+          </h2>
           <RouteMap streams={a.streams} hoverT={mapT} label={replayLabel} />
           <ReplayControls r={player} />
         </div>
@@ -333,7 +346,10 @@ function ActivityDetail({ id }: { id: number }) {
         {charts.map((c) => (
           <div key={c.title}>
             <h2 style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-              {c.title}
+              <span>
+                <MetricIcon m={c.icon} />
+                {c.title}
+              </span>
               {c.action}
             </h2>
             <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} marks={markAt(c.color)} />
@@ -345,6 +361,7 @@ function ActivityDetail({ id }: { id: number }) {
       {dec && (
         <div className="card span-6 scroll">
           <CardTitle
+            icon="decoupling"
             title={`${tr("activities.decoupling")}: ${fmtNum(dec.pct, 1)} %`}
             sub={tr(dec.basis === "speed" ? "activities.decouplingSubPace" : "activities.decouplingSubPower")}
             help="help.decoupling"
@@ -377,14 +394,17 @@ function ActivityDetail({ id }: { id: number }) {
 
       {!!a.curves?.[curveField].length && (
         <div className="card span-6">
-          <CardTitle title={`${tr("activities.curve")} (${tr(`training.${curveField}`)})`} sub={tr("activities.curveSub")} help="help.meanmax" />
+          <CardTitle icon="curve" title={`${tr("activities.curve")} (${tr(`training.${curveField}`)})`} sub={tr("activities.curveSub")} help="help.meanmax" />
           <Chart option={curveOpt} height={220} />
         </div>
       )}
 
       {!!a.detail?.laps?.length && (
         <div className="card span-6 scroll">
-          <h2>{tr("activities.laps")}</h2>
+          <h2>
+            <MetricIcon m="laps" />
+            {tr("activities.laps")}
+          </h2>
           <table>
             <thead>
               <tr>
@@ -411,10 +431,11 @@ function ActivityDetail({ id }: { id: number }) {
   );
 }
 
-function Tile({ label, value, unit, hint, help }: { label: string; value: string | number; unit?: string; hint?: string; help?: Key }) {
+function Tile({ icon, label, value, unit, hint, help }: { icon: MetricKey; label: string; value: string | number; unit?: string; hint?: string; help?: Key }) {
   return (
     <div className="tile">
       <div className="label">
+        <MetricIcon m={icon} />
         {label}
         {help && <Info help={help} />}
       </div>
