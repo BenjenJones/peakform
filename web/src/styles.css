@@ -99,6 +99,8 @@ nav.tabs a.active { background: var(--surface); color: var(--ink); box-shadow: 0
   .span-6, .span-4, .span-3, .span-8 { grid-column: span 12; }
 }
 .card h2 { font-size: 13px; font-weight: 600; margin: 0 0 2px; }
+/* Metric and sport icons (Tabler): quiet, aligned with the text they precede. */
+.mi { flex: none; color: var(--muted); vertical-align: -3px; margin-right: 6px; }
 .card .sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); grid-column: span 12; }

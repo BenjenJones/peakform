@@ -382,7 +382,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
         {d && hasData && (
           <>
             <div className="card span-4">
-              <CardTitle title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
+              <CardTitle icon="readiness" title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
               {rd?.score == null ? (
                 <div className="empty">{t("overview.readinessEmpty")}</div>
               ) : (
@@ -418,7 +418,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             </div>
 
             <div className="card span-6">
-              <CardTitle title={t("day.sleep")} sub={t("day.sleepSub")} help="help.sleep_stages" />
+              <CardTitle icon="sleep" title={t("day.sleep")} sub={t("day.sleepSub")} help="help.sleep_stages" />
               <NightView date={date} refreshKey={refreshKey} />
               <Stack
                 fmt={hm}
@@ -441,7 +441,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             </div>
 
             <div className="card span-6">
-              <CardTitle title={t("day.recovery")} sub={t("day.recoverySub")} help="help.hrv_chart" />
+              <CardTitle icon="hrv" title={t("day.recovery")} sub={t("day.recoverySub")} help="help.hrv_chart" />
               {hrv !== null && lo !== null && hi !== null && (
                 <>
                   <p className="sub">{t("day.hrvRange")}</p>
@@ -468,7 +468,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             </div>
 
             <div className="card span-6">
-              <CardTitle title={t("day.movement")} sub={t("day.movementSub")} />
+              <CardTitle icon="steps" title={t("day.movement")} sub={t("day.movementSub")} />
               {m("steps").value !== null && stepsGoal ? <Progress label={t("day.steps")} value={m("steps").value!} goal={stepsGoal} /> : null}
               {imGoal ? <Progress label={t("day.intensityWeek")} value={d.intensityWeek} goal={imGoal} help="help.intensity" /> : null}
               <div className="stats">
@@ -483,7 +483,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             </div>
 
             <div className="card span-6">
-              <CardTitle title={t("day.stress")} sub={t("day.stressSub")} help="help.stress_breakdown" />
+              <CardTitle icon="stress" title={t("day.stress")} sub={t("day.stressSub")} help="help.stress_breakdown" />
               <Stack
                 fmt={hm}
                 parts={[
@@ -501,7 +501,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             </div>
 
             <div className="card span-6">
-              <CardTitle title={t("day.training")} sub={t("day.trainingSub")} help="help.load" />
+              <CardTitle icon="load" title={t("day.training")} sub={t("day.trainingSub")} help="help.load" />
               <Chart option={loadOption} height={180} />
               <div className="stats">
                 <Stat label={t("metric.load.load")} m={fromLoad("load")} />
