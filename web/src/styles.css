@@ -240,11 +240,25 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 }
 .chart-box .expand:hover { color: var(--ink); background: var(--hover); }
 
-/* Full viewport, also in landscape on phones: dvh follows the visible area when browser bars come and go. */
+/* Centered dialog on larger screens; a full-screen chart on a monitor is too much to take in. */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
 .dialog {
-  position: fixed; inset: 0; z-index: 30; background: var(--surface);
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.3);
+  display: flex; flex-direction: column; width: min(1100px, 100%); height: min(640px, 100%);
+  padding: 14px 16px;
+}
+.dialog:fullscreen { border: 0; border-radius: 0; }
+/* Phones, also turned sideways: the whole screen; dvh follows the visible area when browser bars come and go. */
+@media (max-width: 700px), (max-height: 500px) {
+  .dialog-backdrop { padding: 0; }
+  .dialog {
+    width: 100%; height: 100vh; height: 100dvh; border: 0; border-radius: 0; box-shadow: none;
+    padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
 }
 .dialog-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
 .dialog-head h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 0; display: flex; align-items: center; }

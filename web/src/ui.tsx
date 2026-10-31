@@ -93,7 +93,7 @@ export function leaveTo(hash: string) {
 const canRotate = () =>
   !!document.fullscreenEnabled && typeof (screen.orientation as { lock?: unknown } | undefined)?.lock === "function" && matchMedia("(pointer: coarse)").matches;
 
-/** Full-viewport layer for a big chart. Closes on Escape, the close button and the phone's back button. */
+/** Dialog for a big chart, full screen on phones. Closes on Escape, the close button and the phone's back button. */
 export function Dialog({ title, icon, tools, onClose, children }: {
   title: ReactNode;
   icon?: MetricKey;
@@ -146,25 +146,28 @@ export function Dialog({ title, icon, tools, onClose, children }: {
   };
 
   return createPortal(
-    <div ref={ref} className="dialog" role="dialog" aria-modal="true">
-      <div className="dialog-head">
-        <h2>
-          {icon && <MetricIcon m={icon} />}
-          {title}
-        </h2>
-        <div className="dialog-tools">
-          {tools}
-          {canRotate() && (
-            <button type="button" className="btn icon" onClick={rotate} aria-pressed={full} aria-label={t("zoom.rotate")} title={t("zoom.rotate")}>
-              <IconDeviceMobileRotated size={18} stroke={1.75} aria-hidden="true" />
+    // A click on the dimmed area around the dialog closes it; on phones the dialog covers it all.
+    <div className="dialog-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={ref} className="dialog" role="dialog" aria-modal="true">
+        <div className="dialog-head">
+          <h2>
+            {icon && <MetricIcon m={icon} />}
+            {title}
+          </h2>
+          <div className="dialog-tools">
+            {tools}
+            {canRotate() && (
+              <button type="button" className="btn icon" onClick={rotate} aria-pressed={full} aria-label={t("zoom.rotate")} title={t("zoom.rotate")}>
+                <IconDeviceMobileRotated size={18} stroke={1.75} aria-hidden="true" />
+              </button>
+            )}
+            <button type="button" className="btn icon" onClick={onClose} aria-label={t("zoom.close")} title={t("zoom.close")} autoFocus>
+              <IconX size={18} stroke={1.75} aria-hidden="true" />
             </button>
-          )}
-          <button type="button" className="btn icon" onClick={onClose} aria-label={t("zoom.close")} title={t("zoom.close")} autoFocus>
-            <IconX size={18} stroke={1.75} aria-hidden="true" />
-          </button>
+          </div>
         </div>
+        {children}
       </div>
-      {children}
     </div>,
     document.body,
   );

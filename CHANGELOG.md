@@ -12,8 +12,9 @@
   pinch/scroll zoom with a slider, average, min and max. Tapping a point opens that day.
 - Every chart on **Day**, **Overview**, **Recovery**, **Training**, activities and comparisons has
   an enlarge button in its top right corner.
-- The big chart fills the screen also in landscape on phones; on Android a button switches to
-  fullscreen landscape. The phone's back button closes it.
+- The big chart opens as a dialog; a click next to it, Escape or the close button closes it. On
+  phones it fills the screen, also in landscape; on Android a button switches to fullscreen
+  landscape, and the phone's back button closes it.
 
 ### Changed
 
