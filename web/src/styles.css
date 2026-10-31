@@ -261,7 +261,7 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
   }
 }
 .dialog-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
-.dialog-head h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 0; display: flex; align-items: center; }
+.dialog-head h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1 0 auto; display: flex; align-items: center; }
 .dialog-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .btn.icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; padding: 0; }
 .btn.icon[aria-pressed="true"] { color: var(--s1); }
