@@ -1,5 +1,5 @@
 name: PeakForm for Garmin
-version: "0.7.0"
+version: "0.7.1"
 slug: peakform
 description: Health, recovery and training analytics for Garmin data (Personal API). Not affiliated with Garmin.
 url: https://github.com/BenjenJones/peakform

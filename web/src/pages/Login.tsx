@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { send, useApi } from "../api";
 import { errorText, type Lang, useI18n } from "../i18n";
+import logo from "../logo.svg";
 
 export function Login({ onDone }: { onDone: () => void }) {
   const { t, lang, setLang } = useI18n();
@@ -38,6 +39,7 @@ export function Login({ onDone }: { onDone: () => void }) {
 
   return (
     <form className="auth card" onSubmit={submit}>
+      <img src={logo} alt="" width={40} height={40} style={{ borderRadius: 9 }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2 style={{ fontSize: 18 }}>{mode === "login" ? t("login.signIn") : t("login.create")}</h2>
         <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t("lang.label")}>
