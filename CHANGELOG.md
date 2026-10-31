@@ -20,6 +20,13 @@
 - **Day**: resting heart rate moved from the recovery card and the day's max heart rate from the
   movement card to the new heart rate card.
 
+## 0.7.1
+
+### Added
+
+- App icon: in the browser tab, next to the name in the header, on the sign-in page and for the
+  add-on in Home Assistant.
+
 ## 0.7.0
 
 ### Added

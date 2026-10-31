@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me } from "./api";
 import { detectLang, errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
+import logo from "./logo.svg";
 import { Account } from "./pages/Account";
 import { Activities } from "./pages/Activities";
 import { Data } from "./pages/Data";
@@ -106,7 +107,10 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
   return (
     <div className="shell">
       <header className="top">
-        <h1>PeakForm</h1>
+        <h1>
+          <img src={logo} alt="" width={24} height={24} />
+          PeakForm
+        </h1>
         <nav className="tabs">
           {TABS.map((id) => (
             <a key={id} href={`#/${id}`} className={active === id ? "active" : ""}>
