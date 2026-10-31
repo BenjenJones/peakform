@@ -190,15 +190,25 @@ export function Chart({
 
   useEffect(() => {
     const c = chart.current;
-    if (!c || !onHover) return;
+    const node = el.current;
+    if (!c || !node || !onHover) return;
+    // Connected charts (same group) all fire updateAxisPointer, each snapped to its own data, e.g.
+    // the decoupling series starts at 5 min. Only the chart under the pointer reports its value.
+    let inside = false;
+    const enter = () => (inside = true);
+    const leave = () => (inside = false);
     const move = (e: unknown) => {
       const v = (e as { axesInfo?: { value: number }[] }).axesInfo?.[0]?.value;
-      if (typeof v === "number") onHover(v);
+      if (inside && typeof v === "number") onHover(v);
     };
     const out = () => onHover(null);
+    node.addEventListener("pointerenter", enter);
+    node.addEventListener("pointerleave", leave);
     c.on("updateAxisPointer", move);
     c.on("globalout", out);
     return () => {
+      node.removeEventListener("pointerenter", enter);
+      node.removeEventListener("pointerleave", leave);
       c.off("updateAxisPointer", move);
       c.off("globalout", out);
     };

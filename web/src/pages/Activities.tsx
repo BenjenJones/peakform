@@ -1,9 +1,10 @@
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import type { PageProps } from "../App";
 import { type ActivityLite, daysAgo, fmtCurveDuration, fmtDuration, fmtPace, isRun, type Streams, useApi } from "../api";
-import { base, Chart, limitLine, line, maxWithLimit, type Tokens } from "../Chart";
+import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
 import { fmtDate, fmtNum, type Key, useI18n } from "../i18n";
-import { RouteMap } from "../RouteMap";
+import { ReplayControls, useReplay } from "../Replay";
+import { indexAt, RouteMap } from "../RouteMap";
 import { CardTitle, Info } from "../ui";
 import { Compare, ComparePicker } from "./Compare";
 
@@ -131,6 +132,26 @@ function ActivityDetail({ id }: { id: number }) {
   const [hoverT, setHoverT] = useState<number | null>(null);
   const thinned = useMemo(() => (a?.streams ? thin(a.streams) : null), [a]);
   const run = isRun(a?.type);
+  // Replay by elapsed time, the x axis of the charts: pauses show as the dot standing still.
+  const player = useReplay(a?.streams?.t.at(-1) ?? 0);
+  // Chart hover wins while paused, so the charts can still be explored after a replay.
+  const mapT = hoverT !== null && !player.playing ? hoverT : player.t;
+  const markAt = (color: keyof Tokens): Mark[] | undefined => (player.t === null ? undefined : [{ x: player.t, series: 0, color }]);
+  // Values at the replay position, shown at the dot on the map.
+  const replayLabel = useMemo(() => {
+    const s = a?.streams;
+    if (!s || player.t === null || mapT !== player.t) return null;
+    const i = indexAt(s.t, player.t);
+    const pos = (v: number | null | undefined) => (v ?? 0) > 0;
+    const out = [`${fmtDuration(player.t)}${pos(s.dist[i]) ? ` · ${fmtNum(s.dist[i]! / 1000, 2)} km` : ""}`];
+    if (pos(s.hr[i])) out.push(`${fmtNum(s.hr[i]!)} bpm`);
+    if (pos(s.speed[i])) out.push(fmtPace(s.speed[i]!));
+    if (pos(s.power[i])) out.push(`${fmtNum(s.power[i]!)} W`);
+    if (run && pos(s.cadence[i])) out.push(`${fmtNum(s.cadence[i]!)} ${tr("activities.spm")}`);
+    if (s.alt[i] != null) out.push(`${fmtNum(s.alt[i]!)} m`);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [a, player.t, mapT, run, lang]);
 
   const streamChart = useCallback(
     (key: "hr" | "power" | "speed" | "alt" | "cadence", name: string, colorKey: keyof Tokens, fmt?: (v: number) => string, limit: number | null = null) =>
@@ -170,21 +191,23 @@ function ActivityDetail({ id }: { id: number }) {
   const charts = useMemo(() => {
     if (!thinned || !a) return [];
     const has = (k: keyof typeof thinned) => thinned[k].some((v) => (v ?? 0) > 0);
-    const out: { title: string; option: (t: Tokens) => object; action?: ReactNode }[] = [];
+    const out: { title: string; option: (t: Tokens) => object; color: keyof Tokens; action?: ReactNode }[] = [];
     if (has("hr"))
       out.push({
         title: tr("activities.hrChart"),
         option: streamChart("hr", tr("training.hr"), "s2", undefined, a.hrLimit),
+        color: "s2",
         action: a.hrLimit ? null : (
           <a href="#/account" className="muted" style={{ fontSize: 12, fontWeight: 400 }}>
             {tr("activities.setHrLimit")}
           </a>
         ),
       });
-    if (has("power")) out.push({ title: tr("activities.powerChart"), option: streamChart("power", tr("training.power"), "s1") });
-    if (has("speed")) out.push({ title: tr("activities.paceChart"), option: streamChart("speed", tr("activities.pace"), "s3", fmtPace) });
-    if (run && has("cadence")) out.push({ title: tr("activities.cadenceChart"), option: streamChart("cadence", tr("activities.cadence"), "s1") });
-    if (has("alt")) out.push({ title: tr("activities.elevChart"), option: streamChart("alt", tr("activities.alt"), "s4") });
+    if (has("power")) out.push({ title: tr("activities.powerChart"), option: streamChart("power", tr("training.power"), "s1"), color: "s1" });
+    if (has("speed")) out.push({ title: tr("activities.paceChart"), option: streamChart("speed", tr("activities.pace"), "s3", fmtPace), color: "s3" });
+    if (run && has("cadence"))
+      out.push({ title: tr("activities.cadenceChart"), option: streamChart("cadence", tr("activities.cadence"), "s1"), color: "s1" });
+    if (has("alt")) out.push({ title: tr("activities.elevChart"), option: streamChart("alt", tr("activities.alt"), "s4"), color: "s4" });
     return out;
   }, [thinned, streamChart, a, run, lang]);
 
@@ -301,7 +324,8 @@ function ActivityDetail({ id }: { id: number }) {
       {a.streams && a.streams.lat.some((v) => v !== null) && (
         <div className="card span-4 route-card">
           <h2>{tr("activities.route")}</h2>
-          <RouteMap streams={a.streams} hoverT={hoverT} />
+          <RouteMap streams={a.streams} hoverT={mapT} label={replayLabel} />
+          <ReplayControls r={player} />
         </div>
       )}
 
@@ -312,7 +336,7 @@ function ActivityDetail({ id }: { id: number }) {
               {c.title}
               {c.action}
             </h2>
-            <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} />
+            <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} marks={markAt(c.color)} />
           </div>
         ))}
         {!charts.length && <div className="empty">{tr("activities.noStreams")}</div>}
@@ -325,7 +349,7 @@ function ActivityDetail({ id }: { id: number }) {
             sub={tr(dec.basis === "speed" ? "activities.decouplingSubPace" : "activities.decouplingSubPower")}
             help="help.decoupling"
           />
-          <Chart option={decOpt} height={180} group={`act-${id}`} onHover={setHoverT} />
+          <Chart option={decOpt} height={180} group={`act-${id}`} onHover={setHoverT} marks={markAt("s3")} />
           <table>
             <thead>
               <tr>

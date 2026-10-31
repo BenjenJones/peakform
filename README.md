@@ -30,7 +30,7 @@ Garmin Personal API ──(pull, hourly)──▶ sync ──▶ SQLite (/data) 
 ```sh
 cp .env.example .env   # set MASTER_KEY (openssl rand -base64 32)
 npm install
-npm run dev            # API on :8099, Vite on :5173 (proxied); create an account, paste key under Account
+npm run dev            # app on :8099 (Vite, proxies /api to :8098, see dev.env); create an account, paste key under Account
 npm run sync -- alice  # one-off sync for one user from the terminal
 ```
 

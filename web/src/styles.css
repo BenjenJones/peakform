@@ -208,6 +208,8 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 .route-line.b { stroke: var(--s2); stroke-dasharray: 6 5; }
 .route-hover-a { stroke: var(--surface); fill: var(--s1); }
 .route-hover-b { stroke: var(--surface); fill: var(--s2); }
+.route-map .replay-tip { background: var(--surface); color: var(--ink); border: 1px solid var(--grid); box-shadow: none; font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.route-map .replay-tip::before { border-top-color: var(--grid); }
 /* Dark mode: invert the light OSM tiles instead of loading a second tile set. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .route-map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.85); }

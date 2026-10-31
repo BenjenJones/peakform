@@ -1,6 +1,6 @@
 {
   "name": "peakform",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "concurrently -n server,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "tsx watch --env-file-if-exists=.env server/index.ts",
+    "dev:server": "node --watch --env-file-if-exists=.env --env-file=dev.env --import tsx server/index.ts",
     "dev:web": "vite",
     "build": "vite build && tsc -p server/tsconfig.json && node scripts/notices.mjs",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning dist/server/index.js",

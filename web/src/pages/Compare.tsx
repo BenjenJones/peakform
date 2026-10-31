@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { type CompareCandidate, type CompareCandidates, type Comparison, type CompareProfile, fmtDuration, fmtPace, isRun, useApi } from "../api";
 import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
 import { fmtDate, fmtNum, useI18n } from "../i18n";
+import { ReplayControls, useReplay } from "../Replay";
 import { type LatLon, latLons, positionAt, TrackMap } from "../RouteMap";
 import { CardTitle, Info } from "../ui";
 
@@ -19,8 +20,6 @@ function nearest(xs: number[], km: number) {
   }
   return lo > 0 && km - xs[lo - 1] < xs[lo] - km ? lo - 1 : lo;
 }
-/** Replay speeds: seconds of activity per real second. */
-const SPEEDS = [10, 30, 60, 120];
 
 /**
  * Where an activity was after `t` seconds of moving time: interpolated between grid points so
@@ -89,31 +88,8 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
     [c],
   );
   // Replay by moving time: both start together, so the gap on the map is the race between them.
-  const [playT, setPlayT] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(30);
-  const endT = c ? Math.max(c.a.movingS, c.b.movingS) : 0;
-  const playRef = useRef(0);
-  useEffect(() => {
-    if (!playing) return;
-    let last = performance.now();
-    let raf = requestAnimationFrame(function tick(now) {
-      playRef.current = Math.min(endT, playRef.current + ((now - last) / 1000) * speed);
-      last = now;
-      setPlayT(playRef.current);
-      if (playRef.current >= endT) setPlaying(false);
-      else raf = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [playing, speed, endT]);
-  const seek = (t: number) => {
-    playRef.current = t;
-    setPlayT(t);
-  };
-  const toggle = () => {
-    if (!playing && playRef.current >= endT) seek(0);
-    setPlaying(!playing);
-  };
+  const player = useReplay(c ? Math.max(c.a.movingS, c.b.movingS) : 0);
+  const { t: playT, playing } = player;
   const replay = useMemo(
     () => (c && playT !== null ? { a: atTime(c.profiles.a, c.x, playT), b: atTime(c.profiles.b, c.x, playT) } : null),
     [c, playT],
@@ -283,28 +259,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
         <div className="card span-4 route-card">
           <h2>{t("activities.route")}</h2>
           <TrackMap tracks={tracks} hover={hover} />
-          <div className="replay">
-            <button type="button" className="btn" onClick={toggle} aria-label={t(playing ? "compare.pause" : "compare.play")} title={t(playing ? "compare.pause" : "compare.play")}>
-              {playing ? "❚❚" : "▶"}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={endT}
-              step={1}
-              value={playT ?? 0}
-              onChange={(e) => seek(Number(e.target.value))}
-              aria-label={t("compare.replayTime")}
-            />
-            <span className="num">{fmtDuration(playT ?? 0)}</span>
-            <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} aria-label={t("compare.replaySpeed")}>
-              {SPEEDS.map((s) => (
-                <option key={s} value={s}>
-                  {s}×
-                </option>
-              ))}
-            </select>
-          </div>
+          <ReplayControls r={player} />
           <div className="legend" style={{ marginTop: 8 }}>
             <span>
               <span className="dot" style={{ background: "var(--s1)" }} /> A{replay && ` ${fmtNum(replay.a.km, 2)} km`}
