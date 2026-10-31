@@ -127,15 +127,15 @@ function Spark({ trend }: { trend: Point[] }) {
 }
 
 /** Value tile: change vs the 7 days before, colored when the direction has a clear "better". */
-function Stat({ icon, label, m, src, bar, intraday, unit = "", digits = 0, fmt, better, help, note }: {
+function Stat({ icon, label, m, src, bar, hrGroup, unit = "", digits = 0, fmt, better, help, note }: {
   icon: MetricKey;
   label: string;
   m: DayMetric;
   /** History for the big chart; without it the tile is not tappable. */
   src?: MetricSource;
   bar?: boolean;
-  /** Heart rate metric, see MetricSpec. */
-  intraday?: boolean;
+  /** Part of the resting/lowest/highest heart rate chart, see MetricSpec. */
+  hrGroup?: boolean;
   unit?: string;
   digits?: number;
   fmt?: (v: number) => string;
@@ -148,7 +148,7 @@ function Stat({ icon, label, m, src, bar, intraday, unit = "", digits = 0, fmt, 
   // Hide metrics this user's device never records (e.g. SpO2).
   if (m.value === null && !m.trend.length) return null;
   const f = fmt ?? ((v: number) => fmtNum(v, digits));
-  const open = zoom && src !== undefined ? () => zoom({ title: label, icon, unit, fmt: f, source: src, bar, intraday }) : null;
+  const open = zoom && src !== undefined ? () => zoom({ title: label, icon, unit, fmt: f, source: src, bar, hrGroup }) : null;
   const delta = m.value !== null && m.avg7 !== null ? m.value - m.avg7 : null;
   const good = delta !== null && (better === "up" ? delta >= 0 : better === "down" ? delta <= 0 : false);
   return (
@@ -520,9 +520,9 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
               <CardTitle icon="hr" title={t("day.hr")} sub={t("day.hrSub")} help="help.rhr" />
               <DayHrView date={date} refreshKey={refreshKey} rhr={m("rhr").value} activities={d.activities} />
               <div className="stats">
-                <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" intraday unit="bpm" better="down" help="help.rhr" />
-                <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" intraday unit="bpm" />
-                <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" intraday unit="bpm" />
+                <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" hrGroup unit="bpm" better="down" help="help.rhr" />
+                <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" hrGroup unit="bpm" />
+                <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" hrGroup unit="bpm" />
               </div>
             </div>
 

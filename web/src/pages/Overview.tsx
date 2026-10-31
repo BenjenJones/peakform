@@ -101,7 +101,7 @@ export function Overview({ range, refreshKey }: PageProps) {
             const delta = now ? now.value - base7 : NaN;
             const good = k.higherIsBetter ? delta >= 0 : delta <= 0;
             const label = k.key === "bb_high" ? t("metric.body_battery") : metric(k.key);
-            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, intraday: k.key === "rhr" });
+            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, hrGroup: k.key === "rhr" });
             return (
               <div
                 className="tile click"
