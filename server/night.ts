@@ -45,15 +45,55 @@ function sleepSummary(uid: number, date: string): SleepSummary | null {
   return list.find((s) => s?.calendarDate === date) ?? null;
 }
 
-/** [GMT epoch ms, bpm] samples for one calendar day; null readings dropped. */
-async function heartRateDay(uid: number, client: GarminClient, date: string): Promise<[number, number][]> {
-  const key = `hr:${date}`;
-  const cached = kvGet<[number, number][]>(uid, key);
+interface HrDay {
+  /** [GMT epoch ms, bpm]; null readings dropped. */
+  values: [number, number][];
+  /** Local minus GMT in ms for this day, when Garmin says. */
+  offset: number | null;
+}
+
+/** "2026-10-30T23:00:00.0" as epoch ms, read as UTC. */
+const parseStamp = (s: unknown) => (typeof s === "string" ? Date.parse(s.slice(0, 19) + "Z") : NaN);
+
+/** 2-minute heart rate samples for one calendar day. */
+async function heartRateDay(uid: number, client: GarminClient, date: string): Promise<HrDay> {
+  const key = `hrday:${date}`;
+  const cached = kvGet<HrDay>(uid, key);
   if (cached) return cached;
-  const res = await client.get<{ heartRateValues?: [number, number | null][] | null }>(dailyHeartRate, { date });
+  const res = await client.get<{
+    heartRateValues?: [number, number | null][] | null;
+    startTimestampGMT?: string;
+    startTimestampLocal?: string;
+  }>(dailyHeartRate, { date });
   const values = (res?.heartRateValues ?? []).filter((v): v is [number, number] => typeof v?.[1] === "number");
-  if (date <= addDays(new Date().toISOString().slice(0, 10), -SETTLED_DAYS)) kvSet(uid, key, values);
-  return values;
+  const offset = parseStamp(res?.startTimestampLocal) - parseStamp(res?.startTimestampGMT);
+  const out: HrDay = { values, offset: Number.isFinite(offset) ? offset : null };
+  if (date <= addDays(new Date().toISOString().slice(0, 10), -SETTLED_DAYS)) kvSet(uid, key, out);
+  return out;
+}
+
+export interface DayHr {
+  /** [local-as-UTC epoch ms, bpm] from midnight to midnight. */
+  hr: [number, number][];
+  error: string | null;
+}
+
+/** Heart rate over one calendar day, on the wearer's wall clock. Null without an API key. */
+export async function dayHeartRate(uid: number, date: string): Promise<DayHr | null> {
+  const apiKey = loadApiKey(uid);
+  if (!apiKey) return null;
+  const client = new GarminClient(uid, apiKey);
+  try {
+    const day = await heartRateDay(uid, client, date);
+    const s = sleepSummary(uid, date);
+    const offset = day.offset ?? (s?.sleepStartTimestampLocal && s.sleepStartTimestampGMT ? s.sleepStartTimestampLocal - s.sleepStartTimestampGMT : 0);
+    const from = Date.parse(date + "T00:00:00Z");
+    const to = from + 86_400_000;
+    const hr = day.values.map(([ts, bpm]): [number, number] => [ts + offset, bpm]).filter(([ts]) => ts >= from && ts < to);
+    return { hr, error: null };
+  } catch (e) {
+    return { hr: [], error: (e as Error).message };
+  }
 }
 
 export async function night(uid: number, date: string): Promise<Night | null> {
@@ -71,7 +111,7 @@ export async function night(uid: number, date: string): Promise<Night | null> {
     // Nights usually start on the previous calendar day.
     const days = startGmt + offset < Date.parse(date + "T00:00:00Z") ? [addDays(date, -1), date] : [date];
     for (const day of days) {
-      for (const [ts, bpm] of await heartRateDay(uid, client, day)) {
+      for (const [ts, bpm] of (await heartRateDay(uid, client, day)).values) {
         if (ts >= startGmt - MARGIN_MS && ts <= endGmt + MARGIN_MS) out.hr.push([ts + offset, bpm]);
       }
     }

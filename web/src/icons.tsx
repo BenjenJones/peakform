@@ -23,6 +23,7 @@ import {
   IconFlame,
   IconGauge,
   IconHeart,
+  IconHeartDown,
   IconHeartExclamation,
   IconHeartRateMonitor,
   IconHeartUp,
@@ -89,6 +90,7 @@ const METRIC = {
   floors: IconStairsUp,
   calories: IconFlame,
   hrMax: IconHeartUp,
+  hrMin: IconHeartDown,
   resp: IconLungs,
   spo2: IconDroplet,
   sleepNeed: IconBed,
@@ -104,6 +106,7 @@ export type MetricKey = keyof typeof METRIC;
 const FIELD: Record<string, MetricKey> = {
   rhr: "rhr",
   hr_max: "hrMax",
+  hr_min: "hrMin",
   sleep_hr: "hr",
   hrv_night: "hrv",
   hrv_weekly: "hrv",

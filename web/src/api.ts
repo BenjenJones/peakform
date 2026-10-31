@@ -97,6 +97,12 @@ export interface Night {
   hrError: string | null;
 }
 
+/** Heart rate over one calendar day; times are local wall clock encoded as UTC epoch ms. */
+export interface DayHr {
+  hr: [number, number][];
+  error: string | null;
+}
+
 export interface CompareSide {
   id: number; name: string; type: string; start: string;
   distanceM: number; movingS: number; avgHr: number | null; avgPower: number | null; elevGainM: number | null;

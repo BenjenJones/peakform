@@ -129,15 +129,15 @@ export function Training({ range, refreshKey }: PageProps) {
     <div className="grid">
       <div className="card">
         <CardTitle icon="load" title={tr("training.load")} sub={tr("training.loadSub")} help="help.load" />
-        <Chart option={loadOpt} height={260} />
+        <Chart option={loadOpt} expand={tr("training.load")} icon="load" height={260} />
       </div>
       <div className="card span-6">
         <CardTitle icon="acwr" title={tr("training.acwr")} sub={tr("training.acwrSub")} help="help.acwr" />
-        <Chart option={acwrOpt} height={220} />
+        <Chart option={acwrOpt} expand={tr("training.acwr")} icon="acwr" height={220} />
       </div>
       <div className="card span-6">
         <CardTitle icon="weekly" title={tr("training.weekly")} sub={tr("training.weeklySub")} help="help.weekly" />
-        <Chart option={weeklyOpt} height={220} />
+        <Chart option={weeklyOpt} expand={tr("training.weekly")} icon="weekly" height={220} />
       </div>
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -160,7 +160,7 @@ export function Training({ range, refreshKey }: PageProps) {
             </select>
           </div>
         </div>
-        {curve?.length ? <Chart option={curveOpt} height={280} /> : <div className="empty">{tr("training.noStreams")}</div>}
+        {curve?.length ? <Chart option={curveOpt} height={280} expand={tr("training.curve")} icon="curve" /> : <div className="empty">{tr("training.noStreams")}</div>}
       </div>
     </div>
   );

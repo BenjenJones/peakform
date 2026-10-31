@@ -135,6 +135,7 @@ export const CURATED: Record<string, { label: string; unit: string; candidates: 
   // Weekly goal, repeated on every day.
   intensity_goal: { label: "Intensity minutes goal", unit: "min", candidates: ["daily_summaries.intensityMinutes.goal"], detail: true },
   hr_max: { label: "Max HR (day)", unit: "bpm", candidates: ["daily_summaries.heartRate.maxValue"], detail: true },
+  hr_min: { label: "Min HR (day)", unit: "bpm", candidates: ["daily_summaries.heartRate.minValue"], detail: true },
   sleep_hr: { label: "Sleep HR", unit: "bpm", candidates: ["sleep_summaries.avgHeartRate"], detail: true },
   sleep_stress: { label: "Sleep stress", unit: "", candidates: ["sleep_summaries.avgSleepStress"], detail: true },
   sleep_resp: { label: "Sleep respiration", unit: "brpm", candidates: ["sleep_summaries.averageRespirationValue"], detail: true },

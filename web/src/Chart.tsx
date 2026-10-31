@@ -1,7 +1,10 @@
 import * as echarts from "echarts";
 import langDE from "echarts/i18n/langDE-obj.js";
-import { useEffect, useRef, useState } from "react";
+import { IconArrowsMaximize } from "@tabler/icons-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { fmtNum, useI18n } from "./i18n";
+import type { MetricKey } from "./icons";
+import { Dialog } from "./ui";
 
 echarts.registerLocale("DE", langDE as Parameters<typeof echarts.registerLocale>[1]);
 
@@ -110,7 +113,54 @@ function yAt(data: XY[], x: number): number | null {
   return x1 > x0 ? y0 + ((y1 - y0) * (x - x0)) / (x1 - x0) : y0;
 }
 
-export function Chart({
+/** Option for the enlarged chart: pinch/wheel zoom plus a slider below, room for it in the grid. */
+export function zoomable(option: (t: Tokens) => object) {
+  return (t: Tokens) => {
+    const o = option(t) as echarts.EChartsOption & { grid?: { bottom?: number } };
+    return {
+      ...o,
+      grid: { ...o.grid, bottom: (o.grid?.bottom ?? 28) + 40 },
+      dataZoom: [
+        { type: "inside" },
+        { type: "slider", height: 22, bottom: 8, borderColor: t.grid, fillerColor: "transparent", textStyle: { color: t.muted, fontSize: 11 } },
+      ],
+    };
+  };
+}
+
+/** Chart that opens full-size in a dialog from a small button in its corner. */
+export function Chart(props: Parameters<typeof PlainChart>[0] & { expand?: ReactNode; icon?: MetricKey }) {
+  const { expand, icon, ...rest } = props;
+  const [open, setOpen] = useState(false);
+  const { t } = useI18n();
+  const big = useMemo(() => zoomable(rest.option), [rest.option]);
+  // The legend moves left to make room for the button in the top right corner.
+  const small = useMemo(
+    () => (tk: Tokens) => {
+      const o = rest.option(tk) as { legend?: { right?: number } };
+      return o.legend ? { ...o, legend: { ...o.legend, right: (o.legend.right ?? 0) + 34 } } : o;
+    },
+    [rest.option],
+  );
+  if (!expand) return <PlainChart {...rest} />;
+  return (
+    <div className="chart-box">
+      <PlainChart {...rest} option={small} />
+      <button type="button" className="expand" onClick={() => setOpen(true)} aria-label={t("zoom.expand")} title={t("zoom.expand")}>
+        <IconArrowsMaximize size={15} stroke={1.75} aria-hidden="true" />
+      </button>
+      {open && (
+        <Dialog title={expand} icon={icon} onClose={() => setOpen(false)}>
+          <div className="dialog-chart">
+            <PlainChart option={big} onClick={rest.onClick} height="100%" />
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+function PlainChart({
   option,
   height = 240,
   group,
@@ -119,7 +169,7 @@ export function Chart({
   marks,
 }: {
   option: (t: Tokens) => object;
-  height?: number;
+  height?: number | string;
   group?: string;
   onClick?: (p: echarts.ECElementEvent) => void;
   /** x-axis value under the crosshair, null when the pointer leaves. */

@@ -5,6 +5,7 @@ import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, useI18n } from "../i18n";
 import { type MetricKey, MetricIcon } from "../icons";
 import { CardTitle, Info } from "../ui";
+import { tap, useMetricZoom } from "../Zoom";
 
 const TILE_KEYS: { key: string; icon: MetricKey; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
   { key: "hrv_night", icon: "hrv", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },
@@ -25,6 +26,7 @@ export function Overview({ range, refreshKey }: PageProps) {
   const { data: series } = useApi<SeriesMap>(`series?keys=${TILE_KEYS.map((k) => k.key).join(",")}&from=${daysAgo(35)}`, [refreshKey]);
   const { data: load } = useApi<LoadDay[]>(`load?from=${from}`, [refreshKey]);
   const { data: acts } = useApi<ActivityLite[]>(`activities?from=${daysAgo(14)}`, [refreshKey]);
+  const zoom = useMetricZoom(daysAgo(0));
 
   const dateAxis = (tk: Tokens) => ({
     ...(base(tk).xAxis as object),
@@ -68,6 +70,7 @@ export function Overview({ range, refreshKey }: PageProps) {
 
   return (
     <div className="grid">
+      {zoom.dialog}
       <div className="card span-4">
         <CardTitle icon="readiness" title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
         {rd?.score == null ? (
@@ -97,11 +100,17 @@ export function Overview({ range, refreshKey }: PageProps) {
             const base7 = avg(s.slice(-8, -1));
             const delta = now ? now.value - base7 : NaN;
             const good = k.higherIsBetter ? delta >= 0 : delta <= 0;
+            const label = k.key === "bb_high" ? t("metric.body_battery") : metric(k.key);
+            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, hrGroup: k.key === "rhr" });
             return (
-              <div className="tile" key={k.key}>
+              <div
+                className="tile click"
+                key={k.key}
+                {...tap(open)}
+              >
                 <div className="label">
                   <MetricIcon m={k.icon} />
-                  {k.key === "bb_high" ? t("metric.body_battery") : metric(k.key)}
+                  {label}
                   <Info help={k.help} />
                 </div>
                 <div className="value">
@@ -126,11 +135,11 @@ export function Overview({ range, refreshKey }: PageProps) {
 
       <div className="card span-8">
         <CardTitle icon="fitness" title={t("overview.fitnessFatigue")} sub={t("overview.fitnessFatigueSub")} help="help.fitness_fatigue" />
-        <Chart option={formOption} group="overview" />
+        <Chart option={formOption} group="overview" expand={t("overview.fitnessFatigue")} icon="fitness" />
         <div style={{ marginTop: 12 }}>
           <CardTitle icon="form" title={t("overview.form")} sub={t("overview.formSub")} help="help.tsb" />
         </div>
-        <Chart option={tsbOption} height={160} group="overview" />
+        <Chart option={tsbOption} height={160} group="overview" expand={t("overview.form")} icon="form" />
       </div>
 
       <div className="card span-4">

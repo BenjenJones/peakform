@@ -27,7 +27,7 @@ import { compareActivities, compareCandidates } from "./compare.js";
 import { config } from "./config.js";
 import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
-import { night } from "./night.js";
+import { dayHeartRate, night } from "./night.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
 import { enqueueSync, syncAll, syncState } from "./sync.js";
 import {
@@ -224,6 +224,12 @@ api.get("/night", async (c) => {
   const date = c.req.query("date") ?? today();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: "date must be YYYY-MM-DD" }, 400);
   return c.json(await night(c.get("user").id, date));
+});
+
+api.get("/heartrate", async (c) => {
+  const date = c.req.query("date") ?? today();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  return c.json(await dayHeartRate(c.get("user").id, date));
 });
 
 api.get("/activities", (c) => c.json(listActivities(c.get("user").id, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today())));
