@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.6.0
+
+### Added
+
+- Activity: replay on the route map, with play/pause, a time slider and 10× to 120× speed, as in
+  comparisons. Runs by elapsed time like the charts, so the dot stands still during pauses; dots
+  on the charts follow along. A label at the dot shows time, distance, heart rate, pace, power,
+  cadence and altitude at that moment.
+
+### Fixed
+
+- Route map: the dot that follows the charts now matches the time under the pointer. In the first
+  minutes of activities with an aerobic decoupling card it jumped ahead to the 5-minute mark or
+  later.
+- Route map: at the beginning of an activity the dot sits at the start of the route, also when
+  the watch needed a few seconds to find GPS. Before, it was hidden there.
+
 ## 0.5.0
 
 ### Added

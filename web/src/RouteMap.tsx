@@ -11,7 +11,7 @@ const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" ta
 export type LatLon = [number, number];
 
 /** Index of the last sample at or before second `t` (streams are time-sorted). */
-function indexAt(ts: number[], t: number) {
+export function indexAt(ts: number[], t: number) {
   let lo = 0;
   let hi = ts.length - 1;
   while (lo < hi) {
@@ -27,12 +27,16 @@ export function latLons(lat: (number | null)[], lon: (number | null)[]): LatLon[
   return lat.map((a, i) => (a !== null && lon[i] !== null ? ([a, lon[i]] as LatLon) : null)).filter((p): p is LatLon => p !== null);
 }
 
-/** Last position at or before index `i`, walking back over samples without a fix. */
+/**
+ * Last position at or before index `i`, walking back over samples without a fix. Before the
+ * first fix (the watch often needs a few seconds to find GPS) it is the first fix, i.e. the start.
+ */
 export function positionAt(lat: (number | null)[], lon: (number | null)[], i: number): LatLon | null {
-  while (i > 0 && (lat[i] === null || lon[i] === null)) i--;
-  const a = lat[i];
-  const o = lon[i];
-  return a === null || o === null ? null : [a, o];
+  const has = (j: number) => lat[j] != null && lon[j] != null;
+  let j = Math.min(i, lat.length - 1);
+  while (j >= 0 && !has(j)) j--;
+  if (j < 0) for (j = i + 1; j < lat.length && !has(j); j++);
+  return j >= 0 && j < lat.length && has(j) ? [lat[j]!, lon[j]!] : null;
 }
 
 export interface Track {
@@ -44,9 +48,10 @@ export interface Track {
 
 /**
  * One or more routes on an OSM map. `hover` holds a marker position per track (null hides it),
- * moved in sync with the charts. Start and finish are marked for the first track.
+ * moved in sync with the charts. Start and finish are marked for the first track. `labels` puts
+ * a tooltip on a marker, e.g. the current values during a replay (one string per line).
  */
-export function TrackMap({ tracks, hover }: { tracks: Track[]; hover: (LatLon | null)[] }) {
+export function TrackMap({ tracks, hover, labels }: { tracks: Track[]; hover: (LatLon | null)[]; labels?: (string[] | null)[] }) {
   const el = useRef<HTMLDivElement>(null);
   const markers = useRef<L.CircleMarker[]>([]);
   const drawn = tracks.filter((t) => t.points.length >= 2);
@@ -81,22 +86,41 @@ export function TrackMap({ tracks, hover }: { tracks: Track[]; hover: (LatLon | 
   useEffect(() => {
     markers.current.forEach((m, i) => {
       const p = hover[i];
+      const label = p ? labels?.[i] : null;
+      if (!label?.length) m.unbindTooltip();
+      else {
+        // Text nodes, not an HTML string: no escaping to get wrong.
+        const box = document.createElement("div");
+        for (const line of label) box.appendChild(document.createElement("div")).textContent = line;
+        if (m.getTooltip()) m.setTooltipContent(box);
+        else m.bindTooltip(box, { permanent: true, direction: "top", offset: [0, -8], className: "replay-tip" }).openTooltip();
+      }
       if (!p) return m.setStyle({ opacity: 0, fillOpacity: 0 });
       m.setLatLng(p);
       m.setStyle({ opacity: 1, fillOpacity: 1 });
     });
-  }, [hover]);
+  }, [hover, labels]);
 
   if (!drawn.length) return null;
   return <div ref={el} className="route-map" />;
 }
 
+/** Position at second `t`, interpolated between samples so a replay glides instead of jumping. */
+function positionAtTime(s: Streams, t: number): LatLon | null {
+  const i = indexAt(s.t, t);
+  const a = positionAt(s.lat, s.lon, i);
+  const t0 = s.t[i];
+  const t1 = s.t[i + 1];
+  if (!a || t1 === undefined || t1 <= t0 || t <= t0) return a;
+  const b = positionAt(s.lat, s.lon, i + 1);
+  const f = Math.min(1, (t - t0) / (t1 - t0));
+  return b ? [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] : a;
+}
+
 /** Route of one activity; `hoverT` (seconds) moves a marker in sync with the stream charts. */
-export function RouteMap({ streams, hoverT }: { streams: Streams; hoverT: number | null }) {
+export function RouteMap({ streams, hoverT, label }: { streams: Streams; hoverT: number | null; label?: string[] | null }) {
   const tracks = useMemo(() => [{ points: latLons(streams.lat, streams.lon), lineClass: "route-line", hoverClass: "route-hover" }], [streams]);
-  const hover = useMemo(
-    () => [hoverT === null ? null : positionAt(streams.lat, streams.lon, indexAt(streams.t, hoverT))],
-    [hoverT, streams],
-  );
-  return <TrackMap tracks={tracks} hover={hover} />;
+  const hover = useMemo(() => [hoverT === null ? null : positionAtTime(streams, hoverT)], [hoverT, streams]);
+  const labels = useMemo(() => [label ?? null], [label]);
+  return <TrackMap tracks={tracks} hover={hover} labels={labels} />;
 }
