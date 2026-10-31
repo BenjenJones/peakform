@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0
+
+### Added
+
+- **Day**: new **Heart rate** card with the heart rate over the whole day in 2-minute values,
+  the resting heart rate as a dashed line and the day's activities shaded. Tiles for resting,
+  lowest and highest heart rate of the day.
+- Tap any value tile on **Day** and **Overview** (also the sleep and stress phases and the step
+  and intensity bars) to open its history as a big chart: 30 days to 2 years, 7-day average,
+  pinch/scroll zoom with a slider, average, min and max. Tapping a point opens that day.
+- Every chart on **Day**, **Overview**, **Recovery**, **Training**, activities and comparisons has
+  an enlarge button in its top right corner.
+- The big chart fills the screen also in landscape on phones; on Android a button switches to
+  fullscreen landscape. The phone's back button closes it.
+
+### Changed
+
+- **Day**: resting heart rate moved from the recovery card and the day's max heart rate from the
+  movement card to the new heart rate card.
+
 ## 0.7.0
 
 ### Added

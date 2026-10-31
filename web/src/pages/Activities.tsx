@@ -352,7 +352,7 @@ function ActivityDetail({ id }: { id: number }) {
               </span>
               {c.action}
             </h2>
-            <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} marks={markAt(c.color)} />
+            <Chart option={c.option} height={150} group={`act-${id}`} onHover={setHoverT} marks={markAt(c.color)} expand={c.title} icon={c.icon} />
           </div>
         ))}
         {!charts.length && <div className="empty">{tr("activities.noStreams")}</div>}
@@ -366,7 +366,7 @@ function ActivityDetail({ id }: { id: number }) {
             sub={tr(dec.basis === "speed" ? "activities.decouplingSubPace" : "activities.decouplingSubPower")}
             help="help.decoupling"
           />
-          <Chart option={decOpt} height={180} group={`act-${id}`} onHover={setHoverT} marks={markAt("s3")} />
+          <Chart option={decOpt} height={180} group={`act-${id}`} onHover={setHoverT} marks={markAt("s3")} expand={tr("activities.decoupling")} icon="decoupling" />
           <table>
             <thead>
               <tr>
@@ -395,7 +395,7 @@ function ActivityDetail({ id }: { id: number }) {
       {!!a.curves?.[curveField].length && (
         <div className="card span-6">
           <CardTitle icon="curve" title={`${tr("activities.curve")} (${tr(`training.${curveField}`)})`} sub={tr("activities.curveSub")} help="help.meanmax" />
-          <Chart option={curveOpt} height={220} />
+          <Chart option={curveOpt} expand={`${tr("activities.curve")} (${tr(`training.${curveField}`)})`} icon="curve" height={220} />
         </div>
       )}
 

@@ -223,3 +223,51 @@ pre.raw { max-height: 480px; overflow: auto; font-size: 12px; background: var(--
 .replay { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .replay input[type="range"] { flex: 1; min-width: 0; accent-color: var(--s1); }
 .replay .num { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-2); min-width: 4.5em; text-align: right; }
+
+/* Tappable tiles open the metric's big chart. */
+.click { cursor: pointer; }
+.stat.click:hover, .tile.click:hover { background: var(--hover); }
+.legend .click:hover { text-decoration: underline; }
+.progress.click:hover .row { color: var(--ink); }
+.click:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+
+.chart-box { position: relative; }
+.chart-box .expand {
+  position: absolute; top: 0; right: 0; width: 26px; height: 22px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); color: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+}
+.chart-box .expand:hover { color: var(--ink); background: var(--hover); }
+
+/* Full viewport, also in landscape on phones: dvh follows the visible area when browser bars come and go. */
+.dialog {
+  position: fixed; inset: 0; z-index: 30; background: var(--surface);
+  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.dialog-head { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; }
+.dialog-head h2 { font-size: 16px; font-weight: 600; margin: 0; flex: 1; min-width: 0; display: flex; align-items: center; }
+.dialog-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.btn.icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 32px; padding: 0; }
+.btn.icon[aria-pressed="true"] { color: var(--s1); }
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; margin-left: -1px; padding: 5px 9px; }
+.seg .btn:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg .btn:last-child { border-radius: 0 8px 8px 0; }
+.seg .btn[aria-pressed="true"] { background: var(--s1); border-color: var(--s1); color: #fff; }
+.dialog-sum { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-2); margin: 10px 0 4px; font-variant-numeric: tabular-nums; }
+.dialog-sum strong { color: var(--ink); }
+.dialog-sum .hint { margin-left: auto; }
+.dialog-chart { flex: 1; min-height: 0; margin-top: 8px; }
+.dialog-chart .empty { padding-top: 20vh; }
+@media (pointer: fine) { .dialog-sum .hint { display: none; } }
+/* Phone turned sideways: every pixel of height goes to the chart. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .dialog { padding-top: max(6px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .dialog-head h2 { font-size: 14px; }
+  .dialog-head .btn.icon { height: 28px; }
+  .seg .btn { padding: 3px 8px; }
+  .dialog-sum { margin: 4px 0 0; font-size: 12px; }
+  .dialog-sum .hint { display: none; }
+  .dialog-chart { margin-top: 2px; }
+}

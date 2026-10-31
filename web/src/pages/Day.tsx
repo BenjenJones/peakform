@@ -1,10 +1,11 @@
 import { createContext, type ReactNode, useCallback, useContext } from "react";
 import type { PageProps } from "../App";
-import { type DayData, type DayMetric, fmtDuration, type Night, type Point, useApi } from "../api";
+import { type DayData, type DayHr, type DayMetric, fmtDuration, type Night, type Point, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, type T, useI18n } from "../i18n";
 import { type MetricKey, MetricIcon } from "../icons";
 import { CardTitle, Info } from "../ui";
+import { type MetricSource, tap, useMetricZoom, useZoom, ZoomCtx } from "../Zoom";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 // The user's calendar day, not UTC: late evening must not already show tomorrow.
@@ -126,10 +127,13 @@ function Spark({ trend }: { trend: Point[] }) {
 }
 
 /** Value tile: change vs the 7 days before, colored when the direction has a clear "better". */
-function Stat({ icon, label, m, unit = "", digits = 0, fmt, better, help, note }: {
+function Stat({ icon, label, m, src, bar, unit = "", digits = 0, fmt, better, help, note }: {
   icon: MetricKey;
   label: string;
   m: DayMetric;
+  /** History for the big chart; without it the tile is not tappable. */
+  src?: MetricSource;
+  bar?: boolean;
   unit?: string;
   digits?: number;
   fmt?: (v: number) => string;
@@ -138,13 +142,15 @@ function Stat({ icon, label, m, unit = "", digits = 0, fmt, better, help, note }
   note?: ReactNode;
 }) {
   const { t } = useI18n();
+  const zoom = useZoom();
   // Hide metrics this user's device never records (e.g. SpO2).
   if (m.value === null && !m.trend.length) return null;
   const f = fmt ?? ((v: number) => fmtNum(v, digits));
+  const open = zoom && src !== undefined ? () => zoom({ title: label, icon, unit, fmt: f, source: src, bar }) : null;
   const delta = m.value !== null && m.avg7 !== null ? m.value - m.avg7 : null;
   const good = delta !== null && (better === "up" ? delta >= 0 : better === "down" ? delta <= 0 : false);
   return (
-    <div className="stat">
+    <div className={open ? "stat click" : "stat"} {...tap(open)}>
       <div className="label">
         <MetricIcon m={icon} />
         {label}
@@ -170,7 +176,13 @@ function Stat({ icon, label, m, unit = "", digits = 0, fmt, better, help, note }
   );
 }
 
-function Stack({ parts, fmt }: { parts: { label: string; value: number | null; color: string }[]; fmt: (v: number) => string }) {
+function Stack({ parts, fmt, icon, unit }: {
+  parts: { label: string; value: number | null; color: string; src: string }[];
+  fmt: (v: number) => string;
+  icon: MetricKey;
+  unit: string;
+}) {
+  const zoom = useZoom();
   const total = parts.reduce((a, p) => a + (p.value ?? 0), 0);
   if (!total) return null;
   return (
@@ -182,7 +194,7 @@ function Stack({ parts, fmt }: { parts: { label: string; value: number | null; c
       </div>
       <div className="legend">
         {parts.map((p) => (
-          <span key={p.label}>
+          <span key={p.label} className={zoom ? "click" : undefined} {...tap(zoom && (() => zoom({ title: p.label, icon, unit, fmt, source: p.src })))}>
             <span className="dot" style={{ background: p.color }} />
             {p.label} <strong>{p.value !== null ? fmt(p.value) : "–"}</strong>{" "}
             <span className="muted">{p.value ? `${fmtNum((p.value / total) * 100)} %` : ""}</span>
@@ -193,10 +205,21 @@ function Stack({ parts, fmt }: { parts: { label: string; value: number | null; c
   );
 }
 
-function Progress({ icon, label, value, goal, help }: { icon: MetricKey; label: string; value: number; goal: number; help?: Key }) {
+function Progress({ icon, label, value, goal, help, src, zoomTitle, bar }: {
+  icon: MetricKey;
+  label: string;
+  value: number;
+  goal: number;
+  help?: Key;
+  src: MetricSource;
+  /** Title of the big chart, when it shows something else than the bar, e.g. daily instead of weekly minutes. */
+  zoomTitle?: string;
+  bar?: boolean;
+}) {
+  const zoom = useZoom();
   const done = value >= goal;
   return (
-    <div className="progress">
+    <div className={zoom ? "progress click" : "progress"} {...tap(zoom && (() => zoom({ title: zoomTitle ?? label, icon, fmt: (v) => fmtNum(v), source: src, bar })))}>
       <div className="row">
         <span>
           <MetricIcon m={icon} />
@@ -259,8 +282,75 @@ function NightView({ date, refreshKey }: { date: string; refreshKey: number }) {
   return (
     <>
       <p className="sub">{t("day.night", { from: clock(n.start), to: clock(n.end), dur: hm((n.end - n.start) / 3_600_000) })}</p>
-      {n.hr.length > 1 && <Chart option={option} height={140} />}
+      {n.hr.length > 1 && <Chart option={option} height={140} expand={t("day.nightHr")} icon="hr" />}
       {n.hrError && <p className="sub">{t("day.nightHrError")}</p>}
+    </>
+  );
+}
+
+/** Heart rate from midnight to midnight, with resting heart rate and the day's activities. */
+function DayHrView({ date, refreshKey, rhr, activities }: { date: string; refreshKey: number; rhr: number | null; activities: DayData["activities"] }) {
+  const { t, lang, sport } = useI18n();
+  const { data: h } = useApi<DayHr | null>(`heartrate?date=${date}`, [refreshKey]);
+  const option = useCallback(
+    (tk: Tokens) => {
+      const b = base(tk);
+      const day = Date.parse(date + "T00:00:00Z");
+      return {
+        ...b,
+        // Timestamps already carry the local offset.
+        useUTC: true,
+        legend: { show: false },
+        grid: { ...(b.grid as object), top: 16, bottom: 24, left: 36 },
+        tooltip: {
+          ...(b.tooltip as object),
+          formatter: (ps: { value: [number, number] }[]) => `${clock(ps[0].value[0])} · ${ps[0].value[1]} bpm`,
+        },
+        xAxis: {
+          ...(b.xAxis as object),
+          type: "time" as const,
+          min: day,
+          max: day + 86_400_000,
+          interval: 3 * 3_600_000,
+          axisLabel: { color: tk.muted, fontSize: 11, formatter: (v: number) => clock(v) },
+        },
+        // Keep the resting line in view, Garmin's resting value can sit below every 2-minute sample.
+        yAxis: { ...(b.yAxis as object), type: "value" as const, min: rhr ? (v: { min: number }) => Math.min(v.min, rhr) - 5 : undefined },
+        series: [
+          line(t("day.hr"), h?.hr ?? [], tk.s2, {
+            lineStyle: { width: 1.5, color: tk.s2 },
+            markLine: rhr
+              ? {
+                  silent: true,
+                  symbol: "none",
+                  lineStyle: { color: tk.s1, type: "dashed" as const },
+                  label: { formatter: t("day.hrRest", { v: fmtNum(rhr) }), position: "insideStartTop", color: tk.s1, fontSize: 11 },
+                  data: [{ yAxis: rhr }],
+                }
+              : undefined,
+            markArea: {
+              silent: true,
+              itemStyle: { color: tk.s1, opacity: 0.1 },
+              label: { color: tk.muted, fontSize: 11, position: "insideTop" },
+              data: activities.map((a) => {
+                const start = Date.parse(a.start.slice(0, 19) + "Z");
+                return [{ xAxis: start, name: a.name || sport(a.type) }, { xAxis: start + a.durationS * 1000 }];
+              }),
+            },
+          }),
+        ],
+      };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [h, rhr, activities, lang],
+  );
+  if (!h) return null;
+  const avg = h.hr.length ? h.hr.reduce((a, x) => a + x[1], 0) / h.hr.length : null;
+  return (
+    <>
+      {avg !== null && <p className="sub">{t("day.hrAvg", { v: fmtNum(avg) })}</p>}
+      {h.hr.length > 1 && <Chart option={option} height={200} expand={t("day.hr")} icon="hr" />}
+      {h.error && <p className="sub">{t("day.hrError")}</p>}
     </>
   );
 }
@@ -289,6 +379,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   const today = localToday();
   const date = picked && /^\d{4}-\d{2}-\d{2}$/.test(picked) ? picked : today;
   const { data: d, error } = useApi<DayData>(`day?date=${date}`, [refreshKey]);
+  const zoom = useMetricZoom(date);
 
   const m = (k: string) => d?.metrics[k] ?? EMPTY;
   /** A derived series in the same shape as the server's metrics. */
@@ -349,6 +440,8 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
   return (
     <DayCtx.Provider value={date}>
+    <ZoomCtx.Provider value={zoom.open}>
+      {zoom.dialog}
       <div className="grid">
         <div className="card daynav">
           <button className="btn" onClick={() => go(shift(date, -1))} aria-label={t("day.prev")} disabled={!!d?.first && date <= d.first}>
@@ -421,26 +514,38 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
               </ul>
             </div>
 
+            <div className="card">
+              <CardTitle icon="hr" title={t("day.hr")} sub={t("day.hrSub")} help="help.rhr" />
+              <DayHrView date={date} refreshKey={refreshKey} rhr={m("rhr").value} activities={d.activities} />
+              <div className="stats">
+                <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" unit="bpm" better="down" help="help.rhr" />
+                <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" unit="bpm" />
+                <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" unit="bpm" />
+              </div>
+            </div>
+
             <div className="card span-6">
               <CardTitle icon="sleep" title={t("day.sleep")} sub={t("day.sleepSub")} help="help.sleep_stages" />
               <NightView date={date} refreshKey={refreshKey} />
               <Stack
                 fmt={hm}
+                icon="stages"
+                unit="h"
                 parts={[
-                  { label: t("recovery.deep"), value: m("deep_sleep_hours").value, color: "var(--s1)" },
-                  { label: t("recovery.light"), value: m("light_sleep_hours").value, color: "var(--s3)" },
-                  { label: t("recovery.rem"), value: m("rem_sleep_hours").value, color: "var(--s2)" },
-                  { label: t("recovery.awake"), value: m("awake_hours").value, color: "var(--s4)" },
+                  { label: t("recovery.deep"), value: m("deep_sleep_hours").value, color: "var(--s1)", src: "deep_sleep_hours" },
+                  { label: t("recovery.light"), value: m("light_sleep_hours").value, color: "var(--s3)", src: "light_sleep_hours" },
+                  { label: t("recovery.rem"), value: m("rem_sleep_hours").value, color: "var(--s2)", src: "rem_sleep_hours" },
+                  { label: t("recovery.awake"), value: m("awake_hours").value, color: "var(--s4)", src: "awake_hours" },
                 ]}
               />
               <div className="stats">
-                <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} unit="h" fmt={fmtHm} better="up" help="help.sleep" />
-                <Stat icon="sleepNeed" label={metric("sleep_need_hours")} m={m("sleep_need_hours")} unit="h" fmt={fmtHm} help="help.sleep_need" />
-                <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} better="up" help="help.sleep_score" />
-                <Stat icon="hr" label={metric("sleep_hr")} m={m("sleep_hr")} unit="bpm" better="down" />
-                <Stat icon="resp" label={metric("sleep_resp")} m={m("sleep_resp")} unit="brpm" />
-                <Stat icon="spo2" label={metric("spo2_avg")} m={m("spo2_avg")} unit="%" />
-                <Stat icon="stress" label={metric("sleep_stress")} m={m("sleep_stress")} better="down" />
+                <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" unit="h" fmt={fmtHm} better="up" help="help.sleep" />
+                <Stat icon="sleepNeed" label={metric("sleep_need_hours")} m={m("sleep_need_hours")} src="sleep_need_hours" unit="h" fmt={fmtHm} help="help.sleep_need" />
+                <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" better="up" help="help.sleep_score" />
+                <Stat icon="hr" label={metric("sleep_hr")} m={m("sleep_hr")} src="sleep_hr" unit="bpm" better="down" />
+                <Stat icon="resp" label={metric("sleep_resp")} m={m("sleep_resp")} src="sleep_resp" unit="brpm" />
+                <Stat icon="spo2" label={metric("spo2_avg")} m={m("spo2_avg")} src="spo2_avg" unit="%" />
+                <Stat icon="stress" label={metric("sleep_stress")} m={m("sleep_stress")} src="sleep_stress" better="down" />
               </div>
             </div>
 
@@ -453,17 +558,17 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
                 </>
               )}
               <div className="stats">
-                <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} unit="ms" better="up" help="help.hrv" />
-                <Stat icon="hrv" label={metric("hrv_weekly")} m={m("hrv_weekly")} unit="ms" better="up" />
-                <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} unit="bpm" better="down" help="help.rhr" />
-                <Stat icon="bodyBattery" label={metric("bb_high")} m={m("bb_high")} better="up" help="help.bb" />
-                <Stat icon="bbLow" label={metric("bb_low")} m={m("bb_low")} better="up" />
-                <Stat icon="bodyBattery" label={metric("bb_charged")} m={m("bb_charged")} better="up" help="help.bb_flow" />
-                <Stat icon="bbDrained" label={metric("bb_drained")} m={m("bb_drained")} />
+                <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" unit="ms" better="up" help="help.hrv" />
+                <Stat icon="hrv" label={metric("hrv_weekly")} m={m("hrv_weekly")} src="hrv_weekly" unit="ms" better="up" />
+                <Stat icon="bodyBattery" label={metric("bb_high")} m={m("bb_high")} src="bb_high" better="up" help="help.bb" />
+                <Stat icon="bbLow" label={metric("bb_low")} m={m("bb_low")} src="bb_low" better="up" />
+                <Stat icon="bodyBattery" label={metric("bb_charged")} m={m("bb_charged")} src="bb_charged" better="up" help="help.bb_flow" />
+                <Stat icon="bbDrained" label={metric("bb_drained")} m={m("bb_drained")} src="bb_drained" />
                 <Stat
                   icon="weight"
                   label={metric("weight")}
                   m={weight}
+                  src="weight"
                   unit="kg"
                   digits={1}
                   help="help.weight"
@@ -474,16 +579,15 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
             <div className="card span-6">
               <CardTitle icon="steps" title={t("day.movement")} sub={t("day.movementSub")} />
-              {m("steps").value !== null && stepsGoal ? <Progress icon="steps" label={t("day.steps")} value={m("steps").value!} goal={stepsGoal} /> : null}
-              {imGoal ? <Progress icon="intensity" label={t("day.intensityWeek")} value={d.intensityWeek} goal={imGoal} help="help.intensity" /> : null}
+              {m("steps").value !== null && stepsGoal ? <Progress icon="steps" label={t("day.steps")} value={m("steps").value!} goal={stepsGoal} src="steps" bar /> : null}
+              {imGoal ? <Progress icon="intensity" label={t("day.intensityWeek")} value={d.intensityWeek} goal={imGoal} help="help.intensity" src={{ intensity: true }} zoomTitle={t("day.intensityToday")} bar /> : null}
               <div className="stats">
-                <Stat icon="steps" label={metric("steps")} m={m("steps")} better="up" />
-                <Stat icon="distance" label={metric("distance_km")} m={m("distance_km")} unit="km" digits={1} better="up" />
-                <Stat icon="floors" label={metric("floors")} m={m("floors")} better="up" />
-                <Stat icon="intensity" label={t("day.intensityToday")} m={intensity} unit="min" better="up" help="help.intensity" />
-                <Stat icon="calories" label={metric("calories_total")} m={m("calories_total")} unit="kcal" />
-                <Stat icon="calories" label={metric("calories_active")} m={m("calories_active")} unit="kcal" better="up" />
-                <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} unit="bpm" />
+                <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar better="up" />
+                <Stat icon="distance" label={metric("distance_km")} m={m("distance_km")} src="distance_km" bar unit="km" digits={1} better="up" />
+                <Stat icon="floors" label={metric("floors")} m={m("floors")} src="floors" bar better="up" />
+                <Stat icon="intensity" label={t("day.intensityToday")} m={intensity} src={{ intensity: true }} bar unit="min" better="up" help="help.intensity" />
+                <Stat icon="calories" label={metric("calories_total")} m={m("calories_total")} src="calories_total" bar unit="kcal" />
+                <Stat icon="calories" label={metric("calories_active")} m={m("calories_active")} src="calories_active" bar unit="kcal" better="up" />
               </div>
             </div>
 
@@ -491,29 +595,31 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
               <CardTitle icon="stress" title={t("day.stress")} sub={t("day.stressSub")} help="help.stress_breakdown" />
               <Stack
                 fmt={hm}
+                icon="stress"
+                unit="h"
                 parts={[
-                  { label: t("day.stress.rest"), value: m("stress_rest_hours").value, color: "var(--s1)" },
-                  { label: t("day.stress.low"), value: m("stress_low_hours").value, color: "var(--s3)" },
-                  { label: t("day.stress.medium"), value: m("stress_medium_hours").value, color: "var(--s4)" },
-                  { label: t("day.stress.high"), value: m("stress_high_hours").value, color: "var(--s2)" },
+                  { label: t("day.stress.rest"), value: m("stress_rest_hours").value, color: "var(--s1)", src: "stress_rest_hours" },
+                  { label: t("day.stress.low"), value: m("stress_low_hours").value, color: "var(--s3)", src: "stress_low_hours" },
+                  { label: t("day.stress.medium"), value: m("stress_medium_hours").value, color: "var(--s4)", src: "stress_medium_hours" },
+                  { label: t("day.stress.high"), value: m("stress_high_hours").value, color: "var(--s2)", src: "stress_high_hours" },
                 ]}
               />
               <div className="stats">
-                <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} better="down" help="help.stress" />
-                <Stat icon="stress" label={metric("stress_high_hours")} m={m("stress_high_hours")} unit="h" fmt={fmtHm} better="down" />
-                <Stat icon="rest" label={metric("stress_rest_hours")} m={m("stress_rest_hours")} unit="h" fmt={fmtHm} better="up" />
+                <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" better="down" help="help.stress" />
+                <Stat icon="stress" label={metric("stress_high_hours")} m={m("stress_high_hours")} src="stress_high_hours" unit="h" fmt={fmtHm} better="down" />
+                <Stat icon="rest" label={metric("stress_rest_hours")} m={m("stress_rest_hours")} src="stress_rest_hours" unit="h" fmt={fmtHm} better="up" />
               </div>
             </div>
 
             <div className="card span-6">
               <CardTitle icon="load" title={t("day.training")} sub={t("day.trainingSub")} help="help.load" />
-              <Chart option={loadOption} height={180} />
+              <Chart option={loadOption} height={180} expand={t("day.training")} icon="load" />
               <div className="stats">
-                <Stat icon="load" label={t("metric.load.load")} m={fromLoad("load")} />
-                <Stat icon="fitness" label={t("metric.load.ctl")} m={fromLoad("ctl")} better="up" help="help.fitness_fatigue" />
-                <Stat icon="fatigue" label={t("metric.load.atl")} m={fromLoad("atl")} />
-                <Stat icon="form" label={t("metric.load.tsb")} m={fromLoad("tsb")} help="help.tsb" />
-                <Stat icon="acwr" label={t("training.acwr")} m={fromLoad("acwr")} digits={2} help="help.acwr" />
+                <Stat icon="load" label={t("metric.load.load")} m={fromLoad("load")} src={{ load: "load" }} bar />
+                <Stat icon="fitness" label={t("metric.load.ctl")} m={fromLoad("ctl")} src={{ load: "ctl" }} better="up" help="help.fitness_fatigue" />
+                <Stat icon="fatigue" label={t("metric.load.atl")} m={fromLoad("atl")} src={{ load: "atl" }} />
+                <Stat icon="form" label={t("metric.load.tsb")} m={fromLoad("tsb")} src={{ load: "tsb" }} help="help.tsb" />
+                <Stat icon="acwr" label={t("training.acwr")} m={fromLoad("acwr")} src={{ load: "acwr" }} digits={2} help="help.acwr" />
               </div>
             </div>
 
@@ -556,6 +662,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
           </>
         )}
       </div>
+    </ZoomCtx.Provider>
     </DayCtx.Provider>
   );
 }

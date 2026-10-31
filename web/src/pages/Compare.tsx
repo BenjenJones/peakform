@@ -254,7 +254,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
           }
           help="help.compare_lead"
         />
-        <Chart option={chart("delta", signed)} height={180} group="cmp" onHover={setHoverX} marks={leadMarks} />
+        <Chart option={chart("delta", signed)} height={180} group="cmp" onHover={setHoverX} marks={leadMarks} expand={t("compare.lead")} />
       </div>
 
       {hasMap && (
@@ -288,7 +288,7 @@ export function Compare({ a: idA, b: idB }: { a: number; b: number }) {
               <MetricIcon m={ch.icon} />
               {ch.title}
             </h2>
-            <Chart option={ch.option} height={150} group="cmp" onHover={setHoverX} marks={marks} />
+            <Chart option={ch.option} height={150} group="cmp" onHover={setHoverX} marks={marks} expand={ch.title} icon={ch.icon} />
           </div>
         ))}
       </div>

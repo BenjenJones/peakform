@@ -189,7 +189,7 @@ export function Insights({ range, refreshKey }: PageProps) {
             {nextDay}
           </h2>
           <p className="sub">{tr("insights.scatterSub", { r: scatter.r == null ? "–" : fmtNum(scatter.r, 2), n: scatter.n })}</p>
-          <Chart option={scatterOpt} height={320} />
+          <Chart option={scatterOpt} height={320} expand={`${name(pick.x)} ${tr("insights.vs")} ${name(pick.y)}`} />
         </div>
       )}
     </div>
