@@ -5,8 +5,10 @@
 ### Added
 
 - Icons for metrics and sports, so the right tile or chart is quicker to find: in front of the
-  tiles, chart and card titles on all pages, and the sport in the activity list and header. The
-  same metric has the same icon everywhere. Icons are from Tabler Icons (MIT).
+  tiles, chart and card titles on all pages, every single value on the **Day** tab (steps,
+  floors, calories, SpO2, …), the metric mapping on the **Data** tab, and the sport in the
+  activity list and header. The same metric has the same icon everywhere. Icons are from Tabler
+  Icons (MIT).
 
 ## 0.6.0
 
