@@ -15,6 +15,12 @@ const SMOOTH_M = 100;
 const SIMILAR_DISTANCE = 0.07;
 const SIMILAR_RADIUS_M = 300;
 const MAX_OTHERS = 100;
+/** Checkpoints along the route at 10 %, 20 % … 90 % of the distance. */
+const ROUTE_CHECKPOINTS = 9;
+/** A checkpoint may be matched this share of the distance earlier or later on the other route. */
+const ROUTE_WINDOW = 0.1;
+/** GPS points kept per route for matching. */
+const ROUTE_POINTS = 500;
 
 interface Row {
   id: number;
@@ -258,9 +264,50 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number) {
   return 2 * 6_371_000 * Math.asin(Math.sqrt(a));
 }
 
+/** GPS points with their position as a share of the total distance, ascending. */
+interface Route {
+  f: number[];
+  lat: number[];
+  lon: number[];
+}
+
+function route(uid: number, id: number): Route | null {
+  const s = activityStreams(uid, id);
+  if (!s) return null;
+  const tr = track(s);
+  if (tr.total < 100) return null;
+  const every = Math.max(1, Math.floor(s.t.length / ROUTE_POINTS));
+  const r: Route = { f: [], lat: [], lon: [] };
+  for (let i = 0; i < s.t.length; i += every) {
+    const [la, lo] = [s.lat[i], s.lon[i]];
+    if (la === null || lo === null) continue;
+    r.f.push(tr.dist[i] / tr.total);
+    r.lat.push(la);
+    r.lon.push(lo);
+  }
+  return r.f.length ? r : null;
+}
+
+/** Whether each checkpoint of `a` lies near `b` at about the same share of the distance. */
+function follows(a: Route, b: Route) {
+  for (let k = 1; k <= ROUTE_CHECKPOINTS; k++) {
+    const f = k / (ROUTE_CHECKPOINTS + 1);
+    const i = a.f.findIndex((x) => x >= f);
+    // GPS gap around the checkpoint: nothing to check there.
+    if (i < 0 || a.f[i] - f > ROUTE_WINDOW) continue;
+    let hit = false;
+    for (let j = 0; j < b.f.length && !hit; j++) {
+      hit = Math.abs(b.f[j] - a.f[i]) <= ROUTE_WINDOW && haversine(a.lat[i], a.lon[i], b.lat[j], b.lon[j]) <= SIMILAR_RADIUS_M;
+    }
+    if (!hit) return false;
+  }
+  return true;
+}
+
 /**
- * Same sport, split into likely the same route (similar distance, same start and finish)
- * and everything else. Without GPS (treadmill, rowing) only the distance has to match.
+ * Same sport, split into likely the same route (similar distance, same start and finish, and
+ * passing the same checkpoints along the way) and everything else. Without GPS (treadmill,
+ * rowing) only the distance has to match.
  */
 export function compareCandidates(uid: number, id: number): { similar: Candidate[]; others: Candidate[] } | null {
   const ref = getRow(uid, id);
@@ -276,6 +323,15 @@ export function compareCandidates(uid: number, id: number): { similar: Candidate
     return haversine(a1, o1, a2, o2) <= SIMILAR_RADIUS_M;
   };
 
+  // Streams are only decoded for activities that already pass the summary checks.
+  let refRoute: Route | null | undefined;
+  const sameRoute = (otherId: number) => {
+    if (refRoute === undefined) refRoute = route(uid, id);
+    if (!refRoute) return true;
+    const r = route(uid, otherId);
+    return !r || (follows(refRoute, r) && follows(r, refRoute));
+  };
+
   const similar: Candidate[] = [];
   const others: Candidate[] = [];
   for (const r of rows) {
@@ -283,7 +339,7 @@ export function compareCandidates(uid: number, id: number): { similar: Candidate
     const c = { id: r.id, name: r.name ?? "", start: r.start_local, distanceM: num(s.distance), movingS: num(s.movingDuration) ?? num(s.duration) };
     const rd = num(rs.distance);
     const sameDistance = !!rd && !!c.distanceM && Math.abs(c.distanceM - rd) / rd <= SIMILAR_DISTANCE;
-    if (sameDistance && near(s, "startLatitude", "startLongitude") && near(s, "endLatitude", "endLongitude")) similar.push(c);
+    if (sameDistance && near(s, "startLatitude", "startLongitude") && near(s, "endLatitude", "endLongitude") && sameRoute(r.id)) similar.push(c);
     else if (others.length < MAX_OTHERS) others.push(c);
   }
   return { similar, others };

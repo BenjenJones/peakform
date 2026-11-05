@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+### Changed
+
+- **Compare with** suggests only activities that also pass the same points along the way, not
+  just with the same start, finish and distance. A different loop from the same front door no
+  longer shows up as the same route.
+
 ## 0.8.0
 
 ### Added
