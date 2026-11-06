@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+- **Day**: the most important values sit as single widgets right at the top: sleep, sleep score,
+  HRV, resting heart rate, Body Battery, stress, steps and training load. Each shows the change
+  against the last 7 days and a small trend, and opens its history when tapped. Body Battery
+  shows the current level with the time of the reading, past days the level at the end of the
+  day.
+
 ## 0.8.1
 
 ### Changed

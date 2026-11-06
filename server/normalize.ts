@@ -45,6 +45,21 @@ function* dayObjects(node: unknown, depth = 0): Generator<[string, Record<string
   }
 }
 
+/**
+ * Last Body Battery reading of a day and its wall clock minute. The sample lists often end in
+ * null entries, and flattenNumbers skips arrays anyway.
+ */
+function latestBodyBattery(day: Record<string, unknown>, out: Map<string, number>) {
+  const samples = day.bodyBatteryValuesArray;
+  if (!Array.isArray(samples)) return;
+  const last = (samples as [number, number | null][]).findLast((s) => typeof s?.[1] === "number");
+  if (!last) return;
+  out.set("latest", last[1]!);
+  const stamp = (k: string) => (typeof day[k] === "string" ? Date.parse((day[k] as string).slice(0, 19) + "Z") : NaN);
+  const local = last[0] + stamp("startTimestampLocal") - stamp("startTimestampGMT");
+  if (Number.isFinite(local)) out.set("latestMinute", Math.floor((local % 86_400_000) / 60_000));
+}
+
 /** Rebuild daily_metric from all raw_range payloads. Cheap enough to run after each sync. */
 export function rebuildDailyMetrics(uid: number) {
   const rows = db.prepare("SELECT endpoint, payload FROM raw_range WHERE user_id = ? ORDER BY fetched_at").all(uid) as {
@@ -60,6 +75,7 @@ export function rebuildDailyMetrics(uid: number) {
       for (const [date, obj] of dayObjects(unpackJson(row.payload))) {
         const nums = new Map<string, number>();
         flattenNumbers(obj, "", nums);
+        if (row.endpoint === "body_battery") latestBodyBattery(obj, nums);
         for (const [path, value] of nums) {
           // Skip ids and epoch timestamps; they are not metrics.
           if (/(^|\.)(id|date|.*Id|.*Pk)$/i.test(path) || /Timestamp|GMT|Epoch/i.test(path)) continue;
@@ -120,6 +136,9 @@ export const CURATED: Record<string, { label: string; unit: string; candidates: 
     unit: "",
     candidates: ["daily_summaries.bodyBattery.minValue", "daily_summaries.bodyBatteryLowestValue"],
   },
+  // Current level today, the level at the end of the day for past days.
+  bb_latest: { label: "Body Battery latest", unit: "", candidates: ["body_battery.latest"], detail: true },
+  bb_latest_minute: { label: "Body Battery latest, minute of day", unit: "min", candidates: ["body_battery.latestMinute"], detail: true },
   steps: { label: "Steps", unit: "", candidates: ["steps.totalSteps", "daily_summaries.movement.steps.value"] },
   // Last weigh-in of the day; dailyWeightSummaries[].latestWeight
   weight: { label: "Weight", unit: "kg", candidates: ["weight.latestWeight.weight"] },

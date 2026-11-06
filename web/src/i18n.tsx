@@ -61,6 +61,7 @@ const en = {
   "metric.awake_hours": "Awake (night)",
   "metric.stress_avg": "Avg stress",
   "metric.bb_high": "Body Battery high",
+  "metric.bb_latest": "Body Battery latest",
   "metric.bb_low": "Body Battery low",
   "metric.steps": "Steps",
   "metric.weight": "Weight",
@@ -143,6 +144,7 @@ const en = {
   "day.steps": "Steps",
   "day.intensityWeek": "Intensity minutes this week",
   "day.intensityToday": "Intensity min (day)",
+  "day.asOf": "as of {t}",
   "day.lastWeighIn": "last weigh-in {date}",
   "day.stress.rest": "Rest",
   "day.stress.low": "Low",
@@ -436,6 +438,7 @@ const en = {
     "Moderate minutes plus twice the vigorous minutes, Monday to this day, against Garmin's weekly goal (the WHO recommends 150).",
   "help.stress_breakdown":
     "Time per stress level, derived from heart rate variability while the watch was worn. Rest 0–25, low 26–50, medium 51–75, high 76–100.",
+  "help.bb_latest": "Latest Body Battery level Garmin has for the day: today the current level as of the watch's last sync, past days the level at the end of the day.",
   "help.bb_flow": "How much Body Battery was recharged (mostly during sleep) and drained over the day.",
 } as const;
 
@@ -497,6 +500,7 @@ const de: Record<Key, string> = {
   "metric.awake_hours": "Wach (nachts)",
   "metric.stress_avg": "Ø Stress",
   "metric.bb_high": "Body Battery hoch",
+  "metric.bb_latest": "Body Battery aktuell",
   "metric.bb_low": "Body Battery tief",
   "metric.steps": "Schritte",
   "metric.weight": "Gewicht",
@@ -577,6 +581,7 @@ const de: Record<Key, string> = {
   "day.steps": "Schritte",
   "day.intensityWeek": "Intensitätsminuten diese Woche",
   "day.intensityToday": "Intensitätsmin. (Tag)",
+  "day.asOf": "Stand {t}",
   "day.lastWeighIn": "letzte Messung {date}",
   "day.stress.rest": "Ruhe",
   "day.stress.low": "Niedrig",
@@ -861,6 +866,7 @@ const de: Record<Key, string> = {
     "Moderate Minuten plus doppelte intensive Minuten, von Montag bis zu diesem Tag, ggü. Garmins Wochenziel (die WHO empfiehlt 150).",
   "help.stress_breakdown":
     "Zeit je Stresslevel, abgeleitet aus der Herzfrequenzvariabilität, während die Uhr getragen wurde. Ruhe 0–25, niedrig 26–50, mittel 51–75, hoch 76–100.",
+  "help.bb_latest": "Letzter Body-Battery-Stand, den Garmin für den Tag hat: heute der aktuelle Stand seit dem letzten Sync der Uhr, an vergangenen Tagen der Stand am Tagesende.",
   "help.bb_flow": "Wie viel Body Battery geladen (vor allem im Schlaf) und über den Tag verbraucht wurde.",
 };
 

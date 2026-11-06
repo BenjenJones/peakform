@@ -439,6 +439,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   const hi = m("hrv_base_high").value;
   const stepsGoal = m("steps_goal").value;
   const imGoal = m("intensity_goal").value;
+  const bbMinute = m("bb_latest_minute").value;
 
   return (
     <DayCtx.Provider value={date}>
@@ -480,6 +481,24 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
         {d && hasData && (
           <>
+            <div className="stats top">
+              <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" unit="h" fmt={fmtHm} better="up" help="help.sleep" />
+              <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" better="up" help="help.sleep_score" />
+              <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" unit="ms" better="up" help="help.hrv" />
+              <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" hrGroup unit="bpm" better="down" help="help.rhr" />
+              <Stat
+                icon="bodyBattery"
+                label={t("metric.body_battery")}
+                m={m("bb_latest")}
+                src="bb_latest"
+                help="help.bb_latest"
+                note={bbMinute !== null ? t("day.asOf", { t: fmtHm(bbMinute / 60) }) : undefined}
+              />
+              <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" better="down" help="help.stress" />
+              <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar better="up" />
+              <Stat icon="load" label={t("metric.load.load")} m={fromLoad("load")} src={{ load: "load" }} bar help="help.load" />
+            </div>
+
             <div className="card span-4">
               <CardTitle icon="readiness" title={t("overview.readiness")} sub={t("overview.readinessSub")} help="help.readiness" />
               {rd?.score == null ? (

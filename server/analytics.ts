@@ -383,7 +383,7 @@ const DAY_METRICS = [
   "hrv_night", "hrv_weekly", "hrv_base_low", "hrv_base_high", "rhr", "sleep_score", "sleep_hours", "sleep_need_hours",
   "deep_sleep_hours", "light_sleep_hours", "rem_sleep_hours", "awake_hours", "sleep_hr", "sleep_stress", "sleep_resp",
   "spo2_avg", "stress_avg", "stress_rest_hours", "stress_low_hours", "stress_medium_hours", "stress_high_hours",
-  "bb_high", "bb_low", "bb_charged", "bb_drained", "steps", "steps_goal", "distance_km", "floors", "calories_total",
+  "bb_high", "bb_low", "bb_latest", "bb_latest_minute", "bb_charged", "bb_drained", "steps", "steps_goal", "distance_km", "floors", "calories_total",
   "calories_active", "intensity_moderate", "intensity_vigorous", "intensity_goal", "hr_max", "hr_min", "weight",
 ];
 
