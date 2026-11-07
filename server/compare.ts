@@ -21,6 +21,12 @@ const ROUTE_CHECKPOINTS = 9;
 const ROUTE_WINDOW = 0.1;
 /** GPS points kept per route for matching. */
 const ROUTE_POINTS = 500;
+/** Points along each route checked for partial overlap. */
+const OVERLAP_SAMPLES = 40;
+/** Partial matches: only activities starting this close to the reference are decoded. */
+const PARTIAL_START_M = 20_000;
+/** Partial matches: at most this many activities are decoded. */
+const PARTIAL_SCAN = 300;
 
 interface Row {
   id: number;
@@ -305,11 +311,41 @@ function follows(a: Route, b: Route) {
 }
 
 /**
+ * Share of `a`'s route (0…1) that `b` passes anywhere along its way. Points near `a`'s start or
+ * finish are left out, so a shared start and finish alone count as no overlap.
+ */
+function covered(a: Route, b: Route) {
+  const n = a.f.length;
+  const ends: [number, number][] = [
+    [a.lat[0], a.lon[0]],
+    [a.lat[n - 1], a.lon[n - 1]],
+  ];
+  let checked = 0;
+  let hits = 0;
+  for (let k = 0; k < OVERLAP_SAMPLES; k++) {
+    const i = Math.min(n - 1, Math.floor(((k + 0.5) / OVERLAP_SAMPLES) * n));
+    if (ends.some(([la, lo]) => haversine(a.lat[i], a.lon[i], la, lo) <= 2 * SIMILAR_RADIUS_M)) continue;
+    checked++;
+    for (let j = 0; j < b.f.length; j++) {
+      if (haversine(a.lat[i], a.lon[i], b.lat[j], b.lon[j]) <= SIMILAR_RADIUS_M) {
+        hits++;
+        break;
+      }
+    }
+  }
+  return checked ? hits / checked : 0;
+}
+
+/**
  * Same sport, split into likely the same route (similar distance, same start and finish, and
  * passing the same checkpoints along the way) and everything else. Without GPS (treadmill,
- * rowing) only the distance has to match.
+ * rowing) only the distance has to match. Without any exact match, activities that share more
+ * than start and finish with the reference come as `partial`, most shared route first.
  */
-export function compareCandidates(uid: number, id: number): { similar: Candidate[]; others: Candidate[] } | null {
+export function compareCandidates(
+  uid: number,
+  id: number,
+): { similar: Candidate[]; partial: (Candidate & { overlap: number })[]; others: Candidate[] } | null {
   const ref = getRow(uid, id);
   if (!ref) return null;
   const rs = JSON.parse(ref.summary);
@@ -333,14 +369,41 @@ export function compareCandidates(uid: number, id: number): { similar: Candidate
   };
 
   const similar: Candidate[] = [];
-  const others: Candidate[] = [];
+  const rest: { c: Candidate; s: Record<string, unknown> }[] = [];
   for (const r of rows) {
     const s = JSON.parse(r.summary);
     const c = { id: r.id, name: r.name ?? "", start: r.start_local, distanceM: num(s.distance), movingS: num(s.movingDuration) ?? num(s.duration) };
     const rd = num(rs.distance);
     const sameDistance = !!rd && !!c.distanceM && Math.abs(c.distanceM - rd) / rd <= SIMILAR_DISTANCE;
     if (sameDistance && near(s, "startLatitude", "startLongitude") && near(s, "endLatitude", "endLongitude") && sameRoute(r.id)) similar.push(c);
-    else if (others.length < MAX_OTHERS) others.push(c);
+    else rest.push({ c, s });
   }
-  return { similar, others };
+
+  const partial: (Candidate & { overlap: number })[] = [];
+  if (!similar.length) {
+    if (refRoute === undefined) refRoute = route(uid, id);
+    const [rLat, rLon] = [num(rs.startLatitude), num(rs.startLongitude)];
+    if (refRoute && rLat !== null && rLon !== null) {
+      let scanned = 0;
+      for (const { c, s } of rest) {
+        if (scanned >= PARTIAL_SCAN) break;
+        const [la, lo] = [num(s.startLatitude), num(s.startLongitude)];
+        if (la === null || lo === null || haversine(rLat, rLon, la, lo) > PARTIAL_START_M) continue;
+        scanned++;
+        const r = route(uid, c.id);
+        if (!r) continue;
+        // Both directions: a short loop inside a long run shares all of itself but little of the run.
+        const overlap = (covered(refRoute, r) + covered(r, refRoute)) / 2;
+        if (overlap > 0) partial.push({ ...c, overlap: Math.round(overlap * 100) / 100 });
+      }
+      partial.sort((a, b) => b.overlap - a.overlap || b.start.localeCompare(a.start));
+    }
+  }
+
+  const inPartial = new Set(partial.map((p) => p.id));
+  const others = rest
+    .map((x) => x.c)
+    .filter((c) => !inPartial.has(c.id))
+    .slice(0, MAX_OTHERS);
+  return { similar, partial, others };
 }

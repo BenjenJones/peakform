@@ -131,7 +131,12 @@ export interface Comparison {
 }
 
 export interface CompareCandidate { id: number; name: string; start: string; distanceM: number | null; movingS: number | null }
-export interface CompareCandidates { similar: CompareCandidate[]; others: CompareCandidate[] }
+export interface CompareCandidates {
+  similar: CompareCandidate[];
+  /** Only without similar ones: sharing more than start and finish, by share of route (0…1) descending. */
+  partial: (CompareCandidate & { overlap: number })[];
+  others: CompareCandidate[];
+}
 
 export interface Streams {
   t: number[]; hr: (number | null)[]; power: (number | null)[]; speed: (number | null)[];

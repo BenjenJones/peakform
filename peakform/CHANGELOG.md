@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.9.0
+## 0.9.1 – Partial route matches
+
+### Added
+
+- **Compare with**: when no activity runs exactly the same route, a new group **Partly the same
+  route** suggests activities that share more than just start and finish, sorted by how much of
+  the route they have in common (shown as "x % shared").
+
+## 0.9.0 – Key metrics on top
 
 ### Added
 
