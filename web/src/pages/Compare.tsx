@@ -52,10 +52,16 @@ const go = (a: number, b: number) => (location.hash = `#/activities/${a}/compare
 export function ComparePicker({ id }: { id: number }) {
   const { t } = useI18n();
   const { data } = useApi<CompareCandidates>(`activities/${id}/candidates`);
-  if (!data || (!data.similar.length && !data.others.length)) return null;
-  const option = (c: CompareCandidate) => (
+  if (!data || (!data.similar.length && !data.partial.length && !data.others.length)) return null;
+  const option = (c: CompareCandidate & { overlap?: number }) => (
     <option key={c.id} value={c.id}>
-      {[fmtStart(c.start), c.name, c.distanceM ? `${fmtNum(c.distanceM / 1000, 2)} km` : null, c.movingS ? fmtDuration(c.movingS) : null]
+      {[
+        c.overlap !== undefined ? t("compare.overlap", { n: Math.round(c.overlap * 100) }) : null,
+        fmtStart(c.start),
+        c.name,
+        c.distanceM ? `${fmtNum(c.distanceM / 1000, 2)} km` : null,
+        c.movingS ? fmtDuration(c.movingS) : null,
+      ]
         .filter(Boolean)
         .join(" · ")}
     </option>
@@ -66,6 +72,7 @@ export function ComparePicker({ id }: { id: number }) {
       <select value="" onChange={(e) => e.target.value && go(id, Number(e.target.value))}>
         <option value="">{t("compare.choose", { n: data.similar.length })}</option>
         {!!data.similar.length && <optgroup label={t("compare.similar")}>{data.similar.map(option)}</optgroup>}
+        {!!data.partial.length && <optgroup label={t("compare.partial")}>{data.partial.map(option)}</optgroup>}
         {!!data.others.length && <optgroup label={t("compare.others")}>{data.others.map(option)}</optgroup>}
       </select>
     </label>
