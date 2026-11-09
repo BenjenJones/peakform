@@ -6,7 +6,7 @@ import { dateAxisPointer, useI18n } from "../i18n";
 import { CardTitle } from "../ui";
 
 const KEYS = [
-  "hrv_night", "hrv_base_low", "hrv_base_high", "rhr", "sleep_hours", "deep_sleep_hours",
+  "hrv_night", "hrv_base_low", "hrv_base_high", "rhr_night", "rhr_day", "sleep_hours", "deep_sleep_hours",
   "rem_sleep_hours", "light_sleep_hours", "awake_hours", "sleep_score", "stress_avg", "bb_high", "bb_low", "weight",
 ];
 
@@ -80,7 +80,10 @@ export function Recovery({ range, refreshKey }: PageProps) {
     (t: Tokens) => timeChart(t, [line(name, pts(s, key), t[colorKey])], false);
 
   /* eslint-disable react-hooks/exhaustive-deps */
-  const rhr = useCallback(simple("rhr", tr("metric.rhr"), "s2"), [s, lang]);
+  const rhr = useCallback(
+    (t: Tokens) => timeChart(t, [line(tr("metric.rhr_night"), pts(s, "rhr_night"), t.s1), line(tr("metric.rhr_day"), pts(s, "rhr_day"), t.s4)]),
+    [s, lang],
+  );
   const score = useCallback(simple("sleep_score", tr("metric.sleep_score"), "s1"), [s, lang]);
   const stress = useCallback(simple("stress_avg", tr("metric.stress_avg"), "s2"), [s, lang]);
   const weight = useCallback(simple("weight", tr("metric.weight"), "s1"), [s, lang]);

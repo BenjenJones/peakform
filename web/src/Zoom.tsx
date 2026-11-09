@@ -22,7 +22,7 @@ export interface MetricSpec {
 
 const RANGES = [7, 30, 90, 365, 730];
 /** Top to bottom as they lie in the chart. */
-const HR_KEYS = ["hr_max", "rhr", "hr_min"];
+const HR_KEYS = ["hr_max", "rhr_day", "rhr_night", "hr_min"];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const shift = (day: string, n: number) => {
@@ -98,11 +98,11 @@ export function MetricDialog({ spec, date, onClose }: { spec: MetricSpec; date: 
       };
 
       if (spec.hrGroup) {
-        // Daily span from lowest to highest heart rate as a band, resting heart rate inside it.
+        // Daily span from lowest to highest heart rate as a band, the resting heart rates inside it.
         const s = (data ?? {}) as SeriesMap;
         const by = Object.fromEntries(HR_KEYS.map((k) => [k, new Map((s[k] ?? []).map((p) => [ms(p.date), p.value]))]));
         const both = [...by.hr_min.keys()].filter((x) => by.hr_max.has(x)).sort((a, c) => a - c);
-        const color: Record<string, string> = { hr_max: tk.s2, rhr: tk.s1, hr_min: tk.s3 };
+        const color: Record<string, string> = { hr_max: tk.s2, rhr_day: tk.s4, rhr_night: tk.s1, hr_min: tk.s3 };
         const lines = HR_KEYS.map((k) => {
           const on = k === spec.source;
           return line(metric(k), [...by[k]].sort((a, c) => a[0] - c[0]), color[k], {

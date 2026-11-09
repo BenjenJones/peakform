@@ -83,6 +83,14 @@ export function rebuildDailyMetrics(uid: number) {
         }
       }
     }
+    // Computed from the 2-minute samples during sync, see restingHr.ts.
+    const resting = db.prepare("SELECT key, value FROM user_kv WHERE user_id = ? AND key LIKE 'resthr:%'").all(uid) as { key: string; value: string }[];
+    for (const { key, value } of resting) {
+      const date = key.slice("resthr:".length);
+      const { night, day } = JSON.parse(value) as { night: number | null; day: number | null };
+      if (night !== null) insert.run(uid, date, "resting_hr.night", night);
+      if (day !== null) insert.run(uid, date, "resting_hr.day", day);
+    }
   });
 }
 
@@ -153,6 +161,8 @@ export const CURATED: Record<string, { label: string; unit: string; candidates: 
   intensity_vigorous: { label: "Vigorous intensity", unit: "min", candidates: ["daily_summaries.intensityMinutes.vigorous"], detail: true },
   // Weekly goal, repeated on every day.
   intensity_goal: { label: "Intensity minutes goal", unit: "min", candidates: ["daily_summaries.intensityMinutes.goal"], detail: true },
+  rhr_night: { label: "Resting HR (night)", unit: "bpm", candidates: ["resting_hr.night"], detail: true },
+  rhr_day: { label: "Resting HR (day)", unit: "bpm", candidates: ["resting_hr.day"], detail: true },
   hr_max: { label: "Max HR (day)", unit: "bpm", candidates: ["daily_summaries.heartRate.maxValue"], detail: true },
   hr_min: { label: "Min HR (day)", unit: "bpm", candidates: ["daily_summaries.heartRate.minValue"], detail: true },
   sleep_hr: { label: "Sleep HR", unit: "bpm", candidates: ["sleep_summaries.avgHeartRate"], detail: true },

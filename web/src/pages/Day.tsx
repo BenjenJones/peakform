@@ -290,14 +290,24 @@ function NightView({ date, refreshKey }: { date: string; refreshKey: number }) {
   );
 }
 
-/** Heart rate from midnight to midnight, with resting heart rate and the day's activities. */
-function DayHrView({ date, refreshKey, rhr, activities }: { date: string; refreshKey: number; rhr: number | null; activities: DayData["activities"] }) {
+/** Heart rate from midnight to midnight, with night and day resting heart rate and the day's activities. */
+function DayHrView({ date, refreshKey, restNight, restDay, activities }: { date: string; refreshKey: number; restNight: number | null; restDay: number | null; activities: DayData["activities"] }) {
   const { t, lang, sport } = useI18n();
   const { data: h } = useApi<DayHr | null>(`heartrate?date=${date}`, [refreshKey]);
   const option = useCallback(
     (tk: Tokens) => {
       const b = base(tk);
       const day = Date.parse(date + "T00:00:00Z");
+      const restLine = (yAxis: number, text: string, color: string, position: string) => ({
+        yAxis,
+        lineStyle: { color, type: "dashed" as const },
+        label: { formatter: text, position, color, fontSize: 11 },
+      });
+      // Labels at opposite ends: the two values usually lie only a few beats apart.
+      const restLines = [
+        ...(restNight ? [restLine(restNight, t("day.hrRestNight", { v: fmtNum(restNight) }), tk.s1, "insideStartTop")] : []),
+        ...(restDay ? [restLine(restDay, t("day.hrRestDay", { v: fmtNum(restDay) }), tk.s4, "insideEndTop")] : []),
+      ];
       return {
         ...b,
         // Timestamps already carry the local offset.
@@ -316,20 +326,12 @@ function DayHrView({ date, refreshKey, rhr, activities }: { date: string; refres
           interval: 3 * 3_600_000,
           axisLabel: { color: tk.muted, fontSize: 11, formatter: (v: number) => clock(v) },
         },
-        // Keep the resting line in view, Garmin's resting value can sit below every 2-minute sample.
-        yAxis: { ...(b.yAxis as object), type: "value" as const, min: rhr ? (v: { min: number }) => Math.min(v.min, rhr) - 5 : undefined },
+        // Keep the resting lines in view, a resting value can sit below every 2-minute sample of the day.
+        yAxis: { ...(b.yAxis as object), type: "value" as const, min: restLines.length ? (v: { min: number }) => Math.min(v.min, ...restLines.map((l) => l.yAxis)) - 5 : undefined },
         series: [
           line(t("day.hr"), h?.hr ?? [], tk.s2, {
             lineStyle: { width: 1.5, color: tk.s2 },
-            markLine: rhr
-              ? {
-                  silent: true,
-                  symbol: "none",
-                  lineStyle: { color: tk.s1, type: "dashed" as const },
-                  label: { formatter: t("day.hrRest", { v: fmtNum(rhr) }), position: "insideStartTop", color: tk.s1, fontSize: 11 },
-                  data: [{ yAxis: rhr }],
-                }
-              : undefined,
+            markLine: restLines.length ? { silent: true, symbol: "none", data: restLines } : undefined,
             markArea: {
               silent: true,
               itemStyle: { color: tk.s1, opacity: 0.1 },
@@ -344,7 +346,7 @@ function DayHrView({ date, refreshKey, rhr, activities }: { date: string; refres
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [h, rhr, activities, lang],
+    [h, restNight, restDay, activities, lang],
   );
   if (!h) return null;
   const avg = h.hr.length ? h.hr.reduce((a, x) => a + x[1], 0) / h.hr.length : null;
@@ -485,7 +487,8 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
               <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" unit="h" fmt={fmtHm} better="up" help="help.sleep" />
               <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" better="up" help="help.sleep_score" />
               <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" unit="ms" better="up" help="help.hrv" />
-              <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" hrGroup unit="bpm" better="down" help="help.rhr" />
+              <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup unit="bpm" better="down" help="help.rhr" />
+              <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup unit="bpm" better="down" help="help.rhr" />
               <Stat
                 icon="bodyBattery"
                 label={t("metric.body_battery")}
@@ -537,9 +540,10 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
             <div className="card">
               <CardTitle icon="hr" title={t("day.hr")} sub={t("day.hrSub")} help="help.rhr" />
-              <DayHrView date={date} refreshKey={refreshKey} rhr={m("rhr").value} activities={d.activities} />
+              <DayHrView date={date} refreshKey={refreshKey} restNight={m("rhr_night").value} restDay={m("rhr_day").value} activities={d.activities} />
               <div className="stats">
-                <Stat icon="rhr" label={metric("rhr")} m={m("rhr")} src="rhr" hrGroup unit="bpm" better="down" help="help.rhr" />
+                <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup unit="bpm" better="down" help="help.rhr" />
+                <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup unit="bpm" better="down" help="help.rhr" />
                 <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" hrGroup unit="bpm" />
                 <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" hrGroup unit="bpm" />
               </div>

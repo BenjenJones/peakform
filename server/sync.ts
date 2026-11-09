@@ -5,6 +5,7 @@ import { GarminApiError, GarminClient } from "./garmin/client.js";
 import { activityDetail, activityDownload, activitySearch, rangeEndpoints, singleEndpoints } from "./garmin/endpoints.js";
 import { parseFit } from "./garmin/fit.js";
 import { rebuildDailyMetrics } from "./normalize.js";
+import { syncRestingHr } from "./restingHr.js";
 import { loadApiKey, setCredentialError, usersWithKeys } from "./users.js";
 
 /** Days refetched on every sync, since today's/yesterday's data keeps changing. */
@@ -145,6 +146,12 @@ async function syncUser(uid: number): Promise<void> {
     } catch (e) {
       if (e instanceof GarminApiError && e.path.includes("token")) throw e;
       state.errors.push(`activities: ${(e as Error).message}`);
+    }
+    try {
+      await syncRestingHr(uid, client, (step) => (state.step = step));
+    } catch (e) {
+      if (e instanceof GarminApiError && e.path.includes("token")) throw e;
+      state.errors.push(`resting heart rate: ${(e as Error).message}`);
     }
     state.step = "normalizing";
     rebuildDailyMetrics(uid);

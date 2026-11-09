@@ -49,6 +49,8 @@ const en = {
 
   // Metric names
   "metric.rhr": "Resting HR",
+  "metric.rhr_night": "Night resting HR",
+  "metric.rhr_day": "Day resting HR",
   "metric.hrv_night": "HRV",
   "metric.hrv_weekly": "HRV (7-day avg)",
   "metric.hrv_base_low": "HRV baseline low",
@@ -127,7 +129,8 @@ const en = {
   "day.hr": "Heart rate",
   "day.hrSub": "Over the day in 2-minute values, activities shaded",
   "day.hrAvg": "Avg over the day: {v} bpm",
-  "day.hrRest": "Resting {v}",
+  "day.hrRestNight": "Night {v}",
+  "day.hrRestDay": "Day {v}",
   "day.hrError": "Heart rate could not be loaded from Garmin.",
   "day.recovery": "Recovery",
   "day.recoverySub": "HRV, Body Battery and weight",
@@ -390,7 +393,7 @@ const en = {
   "help.hrv":
     "Heart rate variability: average variation between heartbeats during the night (ms, RMSSD). Above your normal range usually means good recovery; clearly below can mean stress, illness, alcohol or training fatigue. Only compare with yourself, not with others.",
   "help.rhr":
-    "Lowest stable heart rate of the day. A rise of 5+ bpm above your normal can indicate fatigue, an infection or poor sleep. Drops over months as endurance improves.",
+    "Lowest 30-minute average heart rate, computed separately for the night (while asleep) and the day (while awake, without naps and the 30 minutes around sleep). The night value usually sits a few bpm lower. A rise of 5+ bpm above your normal can indicate fatigue, an infection or poor sleep. Drops over months as endurance improves.",
   "help.sleep": "Total sleep last night, excluding awake time.",
   "help.sleep_score":
     "Garmin's sleep rating 0–100 from duration, sleep stages, restlessness and stress during sleep. 80+ good, 60–79 fair, below 60 poor.",
@@ -490,6 +493,8 @@ const de: Record<Key, string> = {
   "common.nextDay": "nächster Tag",
 
   "metric.rhr": "Ruhepuls",
+  "metric.rhr_night": "Ruhepuls Nacht",
+  "metric.rhr_day": "Ruhepuls Tag",
   "metric.hrv_night": "HRV",
   "metric.hrv_weekly": "HRV (7-Tage-Schnitt)",
   "metric.hrv_base_low": "HRV-Basis unten",
@@ -566,7 +571,8 @@ const de: Record<Key, string> = {
   "day.hr": "Puls",
   "day.hrSub": "Tagesverlauf in 2-Minuten-Werten, Aktivitäten hinterlegt",
   "day.hrAvg": "Ø über den Tag: {v} bpm",
-  "day.hrRest": "Ruhepuls {v}",
+  "day.hrRestNight": "Nacht {v}",
+  "day.hrRestDay": "Tag {v}",
   "day.hrError": "Puls konnte nicht von Garmin geladen werden.",
   "day.recovery": "Erholung",
   "day.recoverySub": "HRV, Body Battery und Gewicht",
@@ -820,7 +826,7 @@ const de: Record<Key, string> = {
   "help.hrv":
     "Herzfrequenzvariabilität: durchschnittliche Schwankung der Abstände zwischen Herzschlägen in der Nacht (ms, RMSSD). Über deinem Normalbereich spricht meist für gute Erholung; deutlich darunter kann Stress, Krankheit, Alkohol oder Trainingsermüdung bedeuten. Nur mit dir selbst vergleichen, nicht mit anderen.",
   "help.rhr":
-    "Niedrigste stabile Herzfrequenz des Tages. Ein Anstieg um 5+ Schläge über deinen Normalwert kann auf Ermüdung, einen Infekt oder schlechten Schlaf hinweisen. Sinkt über Monate mit besserer Ausdauer.",
+    "Niedrigster 30-Minuten-Schnitt der Herzfrequenz, getrennt berechnet für die Nacht (im Schlaf) und den Tag (wach, ohne Nickerchen und die 30 Minuten rund um den Schlaf). Der Nachtwert liegt meist einige Schläge tiefer. Ein Anstieg um 5+ Schläge über deinen Normalwert kann auf Ermüdung, einen Infekt oder schlechten Schlaf hinweisen. Sinkt über Monate mit besserer Ausdauer.",
   "help.sleep": "Gesamte Schlafdauer der letzten Nacht, ohne Wachphasen.",
   "help.sleep_score":
     "Garmins Schlafbewertung 0–100 aus Dauer, Schlafphasen, Unruhe und Stress im Schlaf. 80+ gut, 60–79 ordentlich, unter 60 schwach.",

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 – Day and night resting heart rate
+
+### Changed
+
+- **Resting heart rate** is now split into a **night** and a **day** value on **Day**,
+  **Overview** and **Recovery**, and in the heart rate chart with its history. Each is the lowest
+  30-minute average: the night value while asleep, the day value while awake, leaving out naps and
+  the 30 minutes around sleep. Past days fill in during the next syncs. Readiness and training
+  load keep using Garmin's own resting heart rate.
+
 ## 0.9.1 – Partial route matches
 
 ### Added

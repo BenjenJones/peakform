@@ -105,6 +105,8 @@ export type MetricKey = keyof typeof METRIC;
 /** Daily metric column (as in metric.<key>) to its icon. */
 const FIELD: Record<string, MetricKey> = {
   rhr: "rhr",
+  rhr_night: "rhr",
+  rhr_day: "rhr",
   hr_max: "hrMax",
   hr_min: "hrMin",
   sleep_hr: "hr",

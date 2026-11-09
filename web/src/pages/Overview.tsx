@@ -9,7 +9,8 @@ import { tap, useMetricZoom } from "../Zoom";
 
 const TILE_KEYS: { key: string; icon: MetricKey; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
   { key: "hrv_night", icon: "hrv", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },
-  { key: "rhr", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
+  { key: "rhr_night", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
+  { key: "rhr_day", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
   { key: "sleep_hours", icon: "sleep", help: "help.sleep", unit: "h", digits: 1, higherIsBetter: true },
   { key: "sleep_score", icon: "sleepScore", help: "help.sleep_score", unit: "", digits: 0, higherIsBetter: true },
   { key: "bb_high", icon: "bodyBattery", help: "help.bb", unit: "", digits: 0, higherIsBetter: true },
@@ -93,7 +94,7 @@ export function Overview({ range, refreshKey }: PageProps) {
       </div>
 
       <div className="card span-8" style={{ padding: 0, background: "none", border: 0 }}>
-        <div className="tiles three">
+        <div className="tiles four">
           {TILE_KEYS.map((k) => {
             const s = series?.[k.key] ?? [];
             const now = latest(s);
@@ -101,7 +102,7 @@ export function Overview({ range, refreshKey }: PageProps) {
             const delta = now ? now.value - base7 : NaN;
             const good = k.higherIsBetter ? delta >= 0 : delta <= 0;
             const label = k.key === "bb_high" ? t("metric.body_battery") : metric(k.key);
-            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, hrGroup: k.key === "rhr" });
+            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, hrGroup: k.key.startsWith("rhr_") });
             return (
               <div
                 className="tile click"

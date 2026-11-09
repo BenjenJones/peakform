@@ -27,7 +27,7 @@ export interface Night {
   hrError: string | null;
 }
 
-const addDays = (day: string, n: number) => {
+export const addDays = (day: string, n: number) => {
   const d = new Date(day + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
@@ -53,13 +53,10 @@ interface HrDay {
 }
 
 /** "2026-10-30T23:00:00.0" as epoch ms, read as UTC. */
-const parseStamp = (s: unknown) => (typeof s === "string" ? Date.parse(s.slice(0, 19) + "Z") : NaN);
+export const parseStamp = (s: unknown) => (typeof s === "string" ? Date.parse(s.slice(0, 19) + "Z") : NaN);
 
-/** 2-minute heart rate samples for one calendar day. */
-async function heartRateDay(uid: number, client: GarminClient, date: string): Promise<HrDay> {
-  const key = `hrday:${date}`;
-  const cached = kvGet<HrDay>(uid, key);
-  if (cached) return cached;
+/** 2-minute heart rate samples for one calendar day, straight from Garmin. */
+export async function fetchHeartRateDay(client: GarminClient, date: string): Promise<HrDay> {
   const res = await client.get<{
     heartRateValues?: [number, number | null][] | null;
     startTimestampGMT?: string;
@@ -67,7 +64,14 @@ async function heartRateDay(uid: number, client: GarminClient, date: string): Pr
   }>(dailyHeartRate, { date });
   const values = (res?.heartRateValues ?? []).filter((v): v is [number, number] => typeof v?.[1] === "number");
   const offset = parseStamp(res?.startTimestampLocal) - parseStamp(res?.startTimestampGMT);
-  const out: HrDay = { values, offset: Number.isFinite(offset) ? offset : null };
+  return { values, offset: Number.isFinite(offset) ? offset : null };
+}
+
+async function heartRateDay(uid: number, client: GarminClient, date: string): Promise<HrDay> {
+  const key = `hrday:${date}`;
+  const cached = kvGet<HrDay>(uid, key);
+  if (cached) return cached;
+  const out = await fetchHeartRateDay(client, date);
   if (date <= addDays(new Date().toISOString().slice(0, 10), -SETTLED_DAYS)) kvSet(uid, key, out);
   return out;
 }
