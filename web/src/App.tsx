@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Me } from "./api";
+import { api, type Me, type ReviewNotice, send } from "./api";
 import { detectLang, errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
 import logo from "./logo.svg";
 import { Account } from "./pages/Account";
@@ -20,6 +20,7 @@ export interface Status {
   sync: { running: boolean; step: string; errors: string[]; lastRun: { finished: string; status: string } | null };
   counts: { days: number; metrics: number; activities: number; fitPending: number; fitErrors: number };
   lastSyncs: { started: string; finished: string | null; status: string; message: string | null }[];
+  reviews: { configured: boolean; pending: number; notice: ReviewNotice | null };
 }
 
 function useHash() {
@@ -140,6 +141,8 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
         </div>
       )}
 
+      {status?.reviews.notice && <ReviewBanner notice={status.reviews.notice} refresh={() => pollRef.current()} />}
+
       {active === "overview" && <Overview {...props} />}
       {active === "day" && <Day {...props} date={rest[0] ?? null} />}
       {active === "recovery" && <Recovery {...props} />}
@@ -210,6 +213,29 @@ function SyncChip({ status, refresh }: { status: Status | null; refresh: () => P
         {busy ? t("sync.busy") : t("sync.now")}
       </button>
     </>
+  );
+}
+
+/** A review could not run: usage limit of the Claude plan reached, or the token stopped working. */
+function ReviewBanner({ notice, refresh }: { notice: ReviewNotice; refresh: () => Promise<void> }) {
+  const { t } = useI18n();
+  const dismiss = () => send("me/review-notice", "DELETE").then(refresh, () => {});
+  return (
+    <div className="card notice" role="alert" style={{ marginBottom: 12 }}>
+      <div>
+        <b>{t(notice.code === "quota" ? "review.noticeQuota" : "review.noticeAuth")}</b>{" "}
+        {t(notice.code === "quota" ? "review.noticeQuotaText" : "review.noticeAuthText")}{" "}
+        <a href={notice.code === "quota" ? `#/activities/${notice.activityId}` : "#/account"}>
+          {t(notice.code === "quota" ? "review.noticeOpen" : "review.noticeFix")}
+        </a>
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+          Claude: {notice.message}
+        </div>
+      </div>
+      <button className="btn" onClick={dismiss}>
+        {t("review.noticeDismiss")}
+      </button>
+    </div>
   );
 }
 

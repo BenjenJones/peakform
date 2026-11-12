@@ -29,6 +29,29 @@ import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
 import { dayHeartRate, night } from "./night.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
+import {
+  anthropicKeyInfo,
+  clearReviewNotice,
+  deleteAnthropicKey,
+  enqueueReview,
+  getReview,
+  initReviewSince,
+  isSportType,
+  MAX_GOALS,
+  queueAutoReviews,
+  reencryptAnthropicKeys,
+  resumeReviews,
+  REVIEW_MODELS,
+  reviewMap,
+  reviewNotice,
+  reviewProfile,
+  reviewQueueInfo,
+  reviewsConfigured,
+  reviewSince,
+  setReviewProfile,
+  storeAnthropicKey,
+  verifyAnthropicKey,
+} from "./review.js";
 import { enqueueSync, syncAll, syncState } from "./sync.js";
 import {
   changePassword,
@@ -156,6 +179,73 @@ api.put("/me/hr-limits", async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------- Activity reviews (Claude) ----------
+
+api.get("/me/review-settings", (c) => {
+  const uid = c.get("user").id;
+  return c.json({
+    profile: reviewProfile(uid),
+    apiKey: anthropicKeyInfo(uid), // never the key itself
+    since: reviewSince(uid),
+    models: REVIEW_MODELS,
+    maxGoals: MAX_GOALS,
+  });
+});
+
+api.put("/me/review-settings", async (c) => {
+  const b = await c.req.json<Record<string, unknown>>();
+  const sex = b.sex === "male" || b.sex === "female" ? b.sex : null;
+  const birthDate = typeof b.birthDate === "string" && b.birthDate ? b.birthDate : null;
+  if (birthDate && (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || birthDate < "1900-01-01" || birthDate > today())) {
+    return c.json({ error: "Invalid birth date", code: "birth_date" }, 400);
+  }
+  const goals = typeof b.goals === "string" ? b.goals : "";
+  if (goals.length > MAX_GOALS) return c.json({ error: `At most ${MAX_GOALS} characters`, code: "goals_too_long" }, 400);
+  const model = REVIEW_MODELS.find((m) => m === b.model) ?? "opus";
+  setReviewProfile(c.get("user").id, { sex, birthDate, goals, model });
+  return c.json({ ok: true });
+});
+
+api.put("/me/anthropic-key", async (c) => {
+  const uid = c.get("user").id;
+  const { apiKey } = await c.req.json<{ apiKey?: string }>();
+  const key = String(apiKey ?? "").trim();
+  if (!key || key.length > 1024 || /\s/.test(key)) return c.json({ error: "That does not look like an API key", code: "key_format" }, 400);
+  // Validate against Anthropic before storing anything.
+  const check = await verifyAnthropicKey(key);
+  if (check === "rejected") return c.json({ error: "Anthropic rejected this key", code: "anthropic_key_rejected" }, 400);
+  if (check === "unreachable") return c.json({ error: "Could not reach Anthropic to verify the key", code: "anthropic_key_unreachable" }, 502);
+  storeAnthropicKey(uid, key);
+  clearReviewNotice(uid);
+  queueAutoReviews(uid);
+  return c.json({ ok: true });
+});
+
+api.delete("/me/anthropic-key", (c) => {
+  deleteAnthropicKey(c.get("user").id);
+  return c.json({ ok: true });
+});
+
+api.delete("/me/review-notice", (c) => {
+  clearReviewNotice(c.get("user").id);
+  return c.json({ ok: true });
+});
+
+api.get("/activities/:id/review", (c) => c.json({ review: getReview(c.get("user").id, Number(c.req.param("id"))) }));
+
+api.post("/activities/:id/review", (c) => {
+  const uid = c.get("user").id;
+  const id = Number(c.req.param("id"));
+  const row = db.prepare("SELECT type FROM activity WHERE user_id = ? AND id = ?").get(uid, id) as { type: string | null } | undefined;
+  if (!row) return c.json({ error: "not found" }, 404);
+  if (!isSportType(row.type)) return c.json({ error: "Only sport activities are reviewed", code: "review_not_sport" }, 400);
+  if (!reviewsConfigured(uid)) return c.json({ error: "No Anthropic API key stored", code: "review_no_key" }, 400);
+  const cur = getReview(uid, id);
+  if (cur?.status === "queued" || cur?.status === "running") return c.json({ ok: true });
+  enqueueReview(uid, id, "manual");
+  return c.json({ ok: true });
+});
+
 /** Deletes the account and, via ON DELETE CASCADE, every row of Garmin data. */
 api.delete("/me", (c) => {
   const uid = c.get("user").id;
@@ -181,6 +271,7 @@ api.get("/status", (c) => {
       fitErrors: count("SELECT count(*) AS n FROM activity WHERE user_id = ? AND fit_status = 'error'"),
     },
     lastSyncs: db.prepare("SELECT started, finished, status, message FROM sync_log WHERE user_id = ? ORDER BY id DESC LIMIT 5").all(uid),
+    reviews: { configured: reviewsConfigured(uid), ...reviewQueueInfo(uid), notice: reviewNotice(uid) },
   });
 });
 
@@ -232,7 +323,11 @@ api.get("/heartrate", async (c) => {
   return c.json(await dayHeartRate(c.get("user").id, date));
 });
 
-api.get("/activities", (c) => c.json(listActivities(c.get("user").id, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today())));
+api.get("/activities", (c) => {
+  const uid = c.get("user").id;
+  const reviews = reviewMap(uid);
+  return c.json(listActivities(uid, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today()).map((a) => ({ ...a, review: reviews.get(a.id) ?? null })));
+});
 
 api.get("/activities/:id", (c) => {
   const uid = c.get("user").id;
@@ -257,6 +352,8 @@ api.get("/activities/:id", (c) => {
       : null,
     decoupling: streams ? decoupling(streams, run) : null,
     hrLimit: hrLimitFor(uid, row.type),
+    review: getReview(uid, id),
+    reviewable: isSportType(row.type),
   });
 });
 
@@ -310,6 +407,10 @@ const indexHtml = (() => {
 app.get("*", (c) => c.html(indexHtml));
 
 reencryptCredentials();
+reencryptAnthropicKeys();
+// Before the first sync: activities synced from now on are reviewed, the existing history is not.
+initReviewSince();
+resumeReviews();
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
   console.log(`peakform listening on :${info.port} (${config.isHaApp ? "Home Assistant" : "standalone"})`);

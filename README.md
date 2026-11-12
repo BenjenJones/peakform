@@ -24,6 +24,15 @@ Garmin Personal API ──(pull, hourly)──▶ sync ──▶ SQLite (/data) 
 - **Analytics** (`server/analytics.ts`): CTL/ATL/TSB from Garmin training load (falls back to
   Banister TRIMP), acute:chronic ratio, mean-max curves, aerobic decoupling, lagged correlation
   matrix, and a 0–100 readiness score from z-scores against a 60-day personal baseline.
+- **Activity reviews** (`server/review.ts`): after each sync, new sport activities (everything but
+  walks, since the first start of 0.10) are queued and reviewed one at a time through the Claude
+  API (`@anthropic-ai/sdk`, structured JSON output). Every user brings their own Anthropic API key
+  from the Claude Console; subscription logins (Pro/Max OAuth tokens) are deliberately not
+  supported, as Anthropic does not allow apps to use them on behalf of their users. The prompt
+  carries the activity, laps and decoupling, recovery around it, training load, recent sessions,
+  sex/age from the profile and the user's own extra instructions. Out-of-credit
+  (`billing_error`, spend limit) and key failures are shown as a notice in the app and retried
+  hourly.
 
 ## Develop
 
@@ -77,6 +86,7 @@ cookies get the `Secure` flag. Set `ALLOW_REGISTRATION=false` once everyone has 
 | Sessions | 32 random bytes in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` over https); only the SHA-256 is stored. 30 days. Password change revokes all sessions. |
 | CSRF | SameSite cookies + `Origin` check on state-changing requests. |
 | Garmin API keys | Verified with Garmin, then AES-256-GCM encrypted with a master key kept outside the DB (`MASTER_KEY` / `MASTER_KEY_FILE` / HA option). Random 96-bit IV per write; user id bound as AAD, so ciphertext copied to another row will not decrypt. Never returned by the API. |
+| Anthropic API keys | Verified with Anthropic (free model list call), then encrypted like the Garmin keys with their own AAD context. Never returned by the API; each user's reviews use only their own key. |
 | Key rotation | New key in `MASTER_KEY`, old in `MASTER_KEY_PREVIOUS`; re-encrypted on startup. |
 | Account deletion | Removes the user, key and all synced data (`ON DELETE CASCADE`). |
 

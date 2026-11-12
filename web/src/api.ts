@@ -64,7 +64,36 @@ export interface ActivityLite {
   id: number; date: string; start: string; type: string; name: string;
   durationS: number; distanceM: number | null; avgHr: number | null; maxHr: number | null;
   avgPower: number | null; elevGainM: number | null; load: number; loadSource: string;
+  /** Only on the activity list. */
+  review?: { status: ReviewStatus; score: number | null } | null;
 }
+
+export type ReviewStatus = "queued" | "running" | "done" | "error" | "quota" | "auth";
+
+export interface ReviewResult {
+  score: number; headline: string; summary: string; positives: string[]; improvements: string[]; recovery: string; nextSession: string;
+}
+
+export interface Review {
+  status: ReviewStatus;
+  trigger: "auto" | "manual";
+  review: ReviewResult | null;
+  model: string | null;
+  error: string | null;
+  updatedAt: string;
+}
+
+export type ReviewModel = "opus" | "sonnet" | "haiku";
+
+export interface ReviewSettings {
+  profile: { sex: "male" | "female" | null; birthDate: string | null; goals: string; model: ReviewModel };
+  apiKey: { updatedAt: string } | null;
+  since: string;
+  models: ReviewModel[];
+  maxGoals: number;
+}
+
+export interface ReviewNotice { code: "quota" | "auth"; message: string; at: string; activityId: number }
 
 export interface Readiness {
   score: number | null;

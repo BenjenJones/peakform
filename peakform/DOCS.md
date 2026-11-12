@@ -10,6 +10,22 @@ no extra password.
 3. In the dashboard, go to **Account** and paste the key. It is verified with Garmin, then
    stored encrypted (AES-256-GCM). The first sync backfills `backfill_days` of history.
 
+## Activity reviews by Claude (optional)
+
+Sport activities (not walks) can be reviewed by Claude. Each user brings their own Anthropic API
+key; reviews are billed to its credit balance, a few cents each. A Claude Pro subscription does
+not include API credits, and subscription logins cannot be used for this.
+
+1. In the [Claude Console](https://platform.claude.com/settings/keys), create an API key and add
+   credits under **Billing**.
+2. In **Account → Activity reviews by Claude**, paste the key. It is verified with Anthropic and
+   stored encrypted. Add your sex and birth date (Garmin does not share them), and optionally
+   goals or other context for every review.
+
+From then on, every new sport activity is reviewed right after its import. Activities from before
+the update are only reviewed when you press **Review now** on their page. When the credit is used
+up, the app shows a notice and tries again later.
+
 ## Master key
 
 User API keys are encrypted with a master key. Leave `master_key` empty to have one generated in
