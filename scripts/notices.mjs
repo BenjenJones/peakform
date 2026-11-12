@@ -15,7 +15,11 @@ function walk(name) {
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
   const files = readdirSync(dir, { withFileTypes: true }).filter((f) => f.isFile()).map((f) => f.name);
   const read = (re) => files.filter((f) => re.test(f)).map((f) => readFileSync(join(dir, f), "utf8").trim());
-  seen.set(name, { version: pkg.version, license: pkg.license, texts: [...read(/^(licen[cs]e|copying)/i), ...read(/^notice/i)] });
+  const texts = [...read(/^(licen[cs]e|copying)/i), ...read(/^notice/i)];
+  // Packages that publish without their license file: the text from their repository.
+  const vendored = join("scripts", "licenses", `${name.replace("/", "__")}.txt`);
+  if (!texts.length && existsSync(vendored)) texts.push(readFileSync(vendored, "utf8").trim());
+  seen.set(name, { version: pkg.version, license: pkg.license, texts });
   for (const dep of Object.keys(pkg.dependencies ?? {})) walk(dep);
 }
 
