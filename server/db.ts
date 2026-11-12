@@ -92,6 +92,21 @@ db.exec(`
     FOREIGN KEY (user_id, activity_id) REFERENCES activity(user_id, id) ON DELETE CASCADE
   );
 
+  -- AI review of a sport activity by Claude (review.ts). New in 0.10; additive, no version bump needed.
+  CREATE TABLE IF NOT EXISTS activity_review (
+    user_id     INTEGER NOT NULL,
+    activity_id INTEGER NOT NULL,
+    status      TEXT NOT NULL,   -- queued | running | done | error | quota | auth
+    trigger     TEXT NOT NULL,   -- auto | manual
+    attempts    INTEGER NOT NULL DEFAULT 0,
+    review      TEXT,            -- JSON, see ReviewResult
+    model       TEXT,
+    error       TEXT,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (user_id, activity_id),
+    FOREIGN KEY (user_id, activity_id) REFERENCES activity(user_id, id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS sync_log (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id  INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,

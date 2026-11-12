@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.10.0 – Activity reviews by Claude
+
+### Added
+
+- **Activity reviews by Claude**: every sport activity (running, cycling, hiking, rowing, strength
+  and more, not walks) is reviewed by Claude right after its import, billed to your own Anthropic
+  API key (a few cents per review). The review gives a score from 1 to 10, a short summary, what went well, what to
+  improve, recovery advice and a suggestion for the next session. It takes the session's data,
+  laps and heart rate drift, your sleep, HRV and resting heart rate around it, your training load
+  and earlier sessions of the same sport into account.
+- Only activities imported from the day of this update on are reviewed automatically. Older ones
+  get a **Review now** button on their page; any review can be run again.
+- **Account → Activity reviews by Claude**: paste an API key from the Claude Console, enter sex
+  and birth date (Garmin does not share them), pick the model (Opus, Sonnet or Haiku) and add
+  information that goes into every review, such as goals, upcoming races or injuries.
+- **Activities**: new column with the score.
+- When a review could not run because the key's credit is used up (or the key stopped working), a
+  notice appears at the top of the app. Such reviews are retried automatically later.
+
 ## 0.9.2 – Day and night resting heart rate
 
 ### Changed

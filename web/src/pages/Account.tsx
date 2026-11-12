@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type HrLimits as HrLimitsData, type Me, send, useApi } from "../api";
+import { type HrLimits as HrLimitsData, type Me, type ReviewModel, type ReviewSettings, send, useApi } from "../api";
 import { errorText, fmtDate, useI18n } from "../i18n";
 import { prefSet, startTab, type Tab, TABS } from "../prefs";
 
@@ -7,6 +7,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
   return (
     <div className="grid">
       <GarminKey me={me} onChange={onChange} />
+      <ReviewSetup />
       <Prefs />
       <HrLimits />
       {me.mode === "local" && <Password />}
@@ -81,6 +82,145 @@ function GarminKey({ me, onChange }: { me: Me; onChange: () => void }) {
         )}
       </div>
     </form>
+  );
+}
+
+/** Anthropic API key, the athlete data Garmin does not share (sex, birth date) and the extra prompt. */
+function ReviewSetup() {
+  const { t } = useI18n();
+  const [reload, setReload] = useState(0);
+  const { data } = useApi<ReviewSettings>("me/review-settings", [reload]);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sex, setSex] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [goals, setGoals] = useState("");
+  const [model, setModel] = useState<ReviewModel>("opus");
+  const [tokenMsg, setTokenMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    setSex(data.profile.sex ?? "");
+    setBirthDate(data.profile.birthDate ?? "");
+    setGoals(data.profile.goals);
+    setModel(data.profile.model);
+  }, [data]);
+  if (!data) return null;
+
+  const saveToken = async (e: FormEvent) => {
+    e.preventDefault();
+    setTokenMsg(null);
+    setBusy(true);
+    try {
+      await send("me/anthropic-key", "PUT", { apiKey: token });
+      setToken("");
+      setTokenMsg({ ok: true, text: t("review.tokenSaved") });
+      setReload((n) => n + 1);
+    } catch (err) {
+      setTokenMsg({ ok: false, text: errorText(t, err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const removeToken = async () => {
+    if (!confirm(t("review.tokenRemoveConfirm"))) return;
+    await send("me/anthropic-key", "DELETE");
+    setReload((n) => n + 1);
+  };
+  const saveProfile = async (e: FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+    try {
+      await send("me/review-settings", "PUT", { sex: sex || null, birthDate: birthDate || null, goals, model });
+      setMsg({ ok: true, text: t("review.profileSaved") });
+    } catch (err) {
+      setMsg({ ok: false, text: errorText(t, err) });
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2>{t("review.setupTitle")}</h2>
+      <p className="sub">{t("review.setupSub", { date: fmtDate(data.since) })}</p>
+      <div className="grid">
+        <form className="span-6" onSubmit={saveToken}>
+          <h2>{t("review.tokenTitle")}</h2>
+          <p className="sub">
+            {t("review.tokenHelp")}{" "}
+            <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">
+              platform.claude.com
+            </a>
+          </p>
+          <p>
+            <span className="dot" style={{ background: data.apiKey ? "var(--good)" : "var(--muted)" }} />{" "}
+            {data.apiKey ? t("review.tokenStored", { date: fmtDate(data.apiKey.updatedAt) }) : t("review.tokenNone")}
+          </p>
+          <input
+            className="input"
+            type="password"
+            autoComplete="off"
+            placeholder={data.apiKey ? t("review.tokenPlaceholderReplace") : t("review.tokenPlaceholderNew")}
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+          />
+          {tokenMsg && <div className={tokenMsg.ok ? "success" : "error"}>{tokenMsg.text}</div>}
+          <div className="controls" style={{ marginTop: 8 }}>
+            <button className="btn primary" disabled={busy || !token.trim()}>
+              {busy ? t("review.tokenChecking") : data.apiKey ? t("account.keyReplace") : t("review.tokenSave")}
+            </button>
+            {data.apiKey && (
+              <button type="button" className="btn" onClick={removeToken}>
+                {t("account.keyRemove")}
+              </button>
+            )}
+          </div>
+        </form>
+        <form className="span-6" onSubmit={saveProfile}>
+          <h2>{t("review.profileTitle")}</h2>
+          <p className="sub">{t("review.profileSub")}</p>
+          <div className="controls" style={{ marginBottom: 6 }}>
+            <label className="controls">
+              {t("review.sex")}
+              <select value={sex} onChange={(e) => setSex(e.target.value)}>
+                <option value="">–</option>
+                <option value="female">{t("review.female")}</option>
+                <option value="male">{t("review.male")}</option>
+              </select>
+            </label>
+            <label className="controls">
+              {t("review.birthDate")}
+              <input className="input" style={{ width: "auto", margin: 0 }} type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            </label>
+            <label className="controls">
+              {t("review.model")}
+              <select value={model} onChange={(e) => setModel(e.target.value as ReviewModel)}>
+                {data.models.map((m) => (
+                  <option key={m} value={m}>
+                    {t(`review.model.${m}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label htmlFor="review-goals" className="sub" style={{ display: "block" }}>
+            {t("review.goals")}
+          </label>
+          <textarea
+            id="review-goals"
+            className="input"
+            rows={5}
+            maxLength={data.maxGoals}
+            placeholder={t("review.goalsPlaceholder")}
+            value={goals}
+            onChange={(e) => setGoals(e.target.value)}
+          />
+          {msg && <div className={msg.ok ? "success" : "error"}>{msg.text}</div>}
+          <button className="btn primary" style={{ marginTop: 8 }}>
+            {t("review.profileSave")}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
 

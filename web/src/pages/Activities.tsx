@@ -1,8 +1,8 @@
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type { PageProps } from "../App";
-import { type ActivityLite, daysAgo, fmtCurveDuration, fmtDuration, fmtPace, isRun, type Streams, useApi } from "../api";
+import { type ActivityLite, api, daysAgo, fmtCurveDuration, fmtDuration, fmtPace, isRun, type Review, send, type Streams, useApi } from "../api";
 import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
-import { fmtDate, fmtNum, type Key, useI18n } from "../i18n";
+import { errorText, fmtDate, fmtNum, type Key, useI18n } from "../i18n";
 import { ReplayControls, useReplay } from "../Replay";
 import { indexAt, RouteMap } from "../RouteMap";
 import { type MetricKey, MetricIcon, SportIcon } from "../icons";
@@ -20,6 +20,8 @@ interface Detail {
   curves: Record<"power" | "speed" | "hr", { durationS: number; value: number }[]> | null;
   decoupling: Decoupling | null;
   hrLimit: number | null;
+  review: Review | null;
+  reviewable: boolean;
 }
 
 /** Output per heartbeat: metres (pace basis) or watts per bpm (power basis). */
@@ -95,6 +97,7 @@ export function Activities({ range, refreshKey, selectedId, compareId }: PagePro
                 <th className="num">{t("activities.time")}</th><th className="num">{t("activities.distance")}</th><th className="num">{t("activities.avgHr")}</th>
                 <th className="num">{t("activities.avgW")}</th><th className="num">{t("activities.elev")}</th>
                 <th className="num">{t("activities.load")}<Info help="help.load" /></th>
+                <th className="num">{t("review.column")}</th>
               </tr>
             </thead>
             <tbody>
@@ -112,6 +115,15 @@ export function Activities({ range, refreshKey, selectedId, compareId }: PagePro
                   <td className="num">{a.avgPower ? Math.round(a.avgPower) : ""}</td>
                   <td className="num">{a.elevGainM ? Math.round(a.elevGainM) + " m" : ""}</td>
                   <td className="num" title={a.loadSource}>{a.load ? Math.round(a.load) : ""}</td>
+                  <td className="num">
+                    {a.review?.score ? (
+                      <ScoreBadge score={a.review.score} />
+                    ) : a.review && a.review.status !== "done" ? (
+                      <span className="muted" title={t(`review.status.${a.review.status}`)}>
+                        {a.review.status === "queued" || a.review.status === "running" ? "…" : "!"}
+                      </span>
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -325,6 +337,8 @@ function ActivityDetail({ id }: { id: number }) {
         </div>
       </div>
 
+      {a.reviewable && <ReviewCard id={id} initial={a.review} />}
+
       {a.fitStatus !== "ok" && (
         <div className="card">
           {tr("activities.fitStatus", { status: a.fitStatus, error: a.fitError ? `: ${a.fitError}` : "" })}
@@ -425,6 +439,118 @@ function ActivityDetail({ id }: { id: number }) {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const scoreColor = (s: number) => (s >= 8 ? "var(--good)" : s >= 5 ? "var(--warning)" : "var(--critical)");
+
+function ScoreBadge({ score, big }: { score: number; big?: boolean }) {
+  return (
+    <span className={big ? "score-badge big" : "score-badge"} style={{ borderColor: scoreColor(score) }}>
+      {score}
+      {big && <span className="unit">/10</span>}
+    </span>
+  );
+}
+
+/** Claude's review of the activity; polls while it is queued or running. */
+function ReviewCard({ id, initial }: { id: number; initial: Review | null }) {
+  const { t } = useI18n();
+  const [r, setR] = useState(initial);
+  const [err, setErr] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const pending = r?.status === "queued" || r?.status === "running";
+
+  useEffect(() => {
+    if (!pending) return;
+    const tick = setInterval(() => api<{ review: Review | null }>(`activities/${id}/review`).then((d) => setR(d.review), () => {}), 3000);
+    return () => clearInterval(tick);
+  }, [id, pending]);
+
+  const start = async () => {
+    setErr(null);
+    setStarting(true);
+    try {
+      await send(`activities/${id}/review`, "POST");
+      setR((cur) => ({ ...(cur ?? { trigger: "manual", review: null, model: null, error: null }), status: "queued", updatedAt: new Date().toISOString() }));
+    } catch (e) {
+      setErr(errorText(t, e));
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const res = r?.review;
+  const failed = r && (r.status === "error" || r.status === "quota" || r.status === "auth");
+  return (
+    <div className="card review">
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
+        <div>
+          <CardTitle icon="readiness" title={t("review.title")} sub={res && r?.model ? t("review.by", { model: r.model, date: fmtDate(r.updatedAt) }) : undefined} />
+        </div>
+        {!pending && (
+          <button className="btn" disabled={starting} onClick={start}>
+            {res ? t("review.again") : failed ? t("review.retry") : t("review.start")}
+          </button>
+        )}
+      </div>
+      {pending && (
+        <p className="chip">
+          <span className="spinner" aria-hidden /> {t(r!.status === "running" ? "review.running" : "review.queued")}
+        </p>
+      )}
+      {failed && (
+        <div className="error">
+          {t(`review.status.${r.status}`)}
+          {r.error ? ` (${r.error})` : ""}
+          {r.status === "auth" && (
+            <>
+              {" "}
+              <a href="#/account">{t("review.noticeFix")}</a>
+            </>
+          )}
+        </div>
+      )}
+      {err && <div className="error">{err}</div>}
+      {!r && !err && <p className="sub">{t("review.none")}</p>}
+      {res && (
+        <div className="review-body">
+          <div className="review-head">
+            <ScoreBadge score={res.score} big />
+            <div>
+              <div className="review-headline">{res.headline}</div>
+              <p>{res.summary}</p>
+            </div>
+          </div>
+          <div className="grid">
+            {!!res.positives.length && (
+              <div className="span-6">
+                <h2>{t("review.positives")}</h2>
+                <ul>{res.positives.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </div>
+            )}
+            {!!res.improvements.length && (
+              <div className="span-6">
+                <h2>{t("review.improvements")}</h2>
+                <ul>{res.improvements.map((p, i) => <li key={i}>{p}</li>)}</ul>
+              </div>
+            )}
+            {res.recovery && (
+              <div className="span-6">
+                <h2>{t("review.recovery")}</h2>
+                <p>{res.recovery}</p>
+              </div>
+            )}
+            {res.nextSession && (
+              <div className="span-6">
+                <h2>{t("review.next")}</h2>
+                <p>{res.nextSession}</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
