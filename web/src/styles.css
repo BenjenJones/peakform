@@ -247,6 +247,36 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.4; }
   :root:not([data-theme="light"]) .route-map .leaflet-control-attribution a { color: var(--ink-2); }
 }
 .route-card { display: flex; flex-direction: column; }
+/* Route coloured by a value (routeLayers.ts): green (low) over yellow to red (high), every layer the
+   same. A dark casing keeps the light middle steps readable on the tiles. */
+.route-map path.route-casing { stroke: rgba(11, 11, 11, 0.45); stroke-linecap: round; stroke-linejoin: round; }
+.route-map path[class^="rl-"] { stroke-linecap: round; stroke-linejoin: round; }
+:root {
+  --rl-0: #1a9850; --rl-1: #66bd63; --rl-2: #a6d96a; --rl-3: #fee08b; --rl-4: #fdae61; --rl-5: #f46d43; --rl-6: #d73027;
+  --rl-none: #b9b8b1;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rl-0: #2ea85f; --rl-1: #6fc46b; --rl-2: #addf74; --rl-3: #fee391; --rl-4: #fdb56b; --rl-5: #f57a52; --rl-6: #e04a3c;
+    --rl-none: #6b6a64;
+  }
+  :root:not([data-theme="light"]) .route-map path.route-casing { stroke: rgba(0, 0, 0, 0.6); }
+}
+.rl-0 { stroke: var(--rl-0); } .rl-1 { stroke: var(--rl-1); } .rl-2 { stroke: var(--rl-2); } .rl-3 { stroke: var(--rl-3); }
+.rl-4 { stroke: var(--rl-4); } .rl-5 { stroke: var(--rl-5); } .rl-6 { stroke: var(--rl-6); } .rl-none { stroke: var(--rl-none); }
+.route-layers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
+.route-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
+.route-legend .ramp { display: inline-flex; gap: 2px; }
+.route-legend .ramp span { width: 18px; height: 8px; border-radius: 2px; }
+/* Own rating of an activity. */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.pills .btn { padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+.pills .btn[aria-pressed="true"], .moods .btn[aria-pressed="true"] { background: var(--s1); border-color: var(--s1); color: #fff; }
+.moods { display: flex; gap: 6px; margin: 4px 0 12px; }
+.moods .btn { padding: 6px; border-radius: 999px; display: inline-flex; }
+.moods .btn .mi { margin: 0; color: var(--ink-2); }
+.moods .btn[aria-pressed="true"] .mi { color: #fff; }
+.feedback h3 { font-size: 13px; font-weight: 600; margin: 0; color: var(--ink-2); }
 .route-card .route-map { flex: 1; min-height: 380px; height: auto; }
 .replay { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 .replay input[type="range"] { flex: 1; min-width: 0; accent-color: var(--s1); }

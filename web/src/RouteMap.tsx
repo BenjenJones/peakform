@@ -2,6 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef } from "react";
 import type { Streams } from "./api";
+import type { Overlay } from "./routeLayers";
 
 // OpenStreetMap's standard tiles: fine for personal, low-volume use with attribution.
 // Note: the tile server learns which area is being viewed.
@@ -50,15 +51,20 @@ export interface Track {
  * One or more routes on an OSM map. `hover` holds a marker position per track (null hides it),
  * moved in sync with the charts. Start and finish are marked for the first track. `labels` puts
  * a tooltip on a marker, e.g. the current values during a replay (one string per line).
+ * `overlay` colours the first route by a value (see routeLayers.ts).
  */
-export function TrackMap({ tracks, hover, labels }: { tracks: Track[]; hover: (LatLon | null)[]; labels?: (string[] | null)[] }) {
+export function TrackMap({ tracks, hover, labels, overlay }: { tracks: Track[]; hover: (LatLon | null)[]; labels?: (string[] | null)[]; overlay?: Overlay | null }) {
   const el = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const markers = useRef<L.CircleMarker[]>([]);
   const drawn = tracks.filter((t) => t.points.length >= 2);
 
   useEffect(() => {
     if (!el.current || !drawn.length) return;
     const map = L.map(el.current, { scrollWheelZoom: false, zoomControl: true });
+    // Coloured route above the plain one, markers above both (overlayPane is 400).
+    map.createPane("routeLayer").style.zIndex = "410";
+    map.createPane("routeMarkers").style.zIndex = "420";
     // OSM's tile policy blocks browser requests without a Referer. The server sends
     // Referrer-Policy: no-referrer for everything else, so opt in per tile (origin only, no path).
     L.tileLayer(TILES, { maxZoom: 19, attribution: ATTRIBUTION, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(map);
@@ -66,11 +72,12 @@ export function TrackMap({ tracks, hover, labels }: { tracks: Track[]; hover: (L
     // Drawn last-first so the first track stays on top where routes overlap.
     for (const t of [...drawn].reverse()) bounds.extend(L.polyline(t.points, { className: t.lineClass, weight: 3 }).addTo(map).getBounds());
     const first = drawn[0].points;
-    L.circleMarker(first[0], { className: "route-start", radius: 5, weight: 2 }).addTo(map);
-    L.circleMarker(first[first.length - 1], { className: "route-end", radius: 5, weight: 2 }).addTo(map);
+    L.circleMarker(first[0], { className: "route-start", radius: 5, weight: 2, pane: "routeMarkers" }).addTo(map);
+    L.circleMarker(first[first.length - 1], { className: "route-end", radius: 5, weight: 2, pane: "routeMarkers" }).addTo(map);
     markers.current = tracks.map((t) =>
-      L.circleMarker(t.points[0] ?? first[0], { className: t.hoverClass, radius: 7, weight: 3, opacity: 0, fillOpacity: 0 }).addTo(map),
+      L.circleMarker(t.points[0] ?? first[0], { className: t.hoverClass, radius: 7, weight: 3, opacity: 0, fillOpacity: 0, pane: "routeMarkers" }).addTo(map),
     );
+    mapRef.current = map;
     map.fitBounds(bounds, { padding: [16, 16] });
     // The card may still be laying out when Leaflet measures it.
     const ro = new ResizeObserver(() => map.invalidateSize());
@@ -78,10 +85,22 @@ export function TrackMap({ tracks, hover, labels }: { tracks: Track[]; hover: (L
     return () => {
       ro.disconnect();
       markers.current = [];
+      mapRef.current = null;
       map.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !overlay?.length) return;
+    const group = L.layerGroup().addTo(map);
+    // A casing in the surface colour keeps light steps readable on the tiles.
+    L.polyline(drawn[0].points, { className: "route-casing", weight: 7, pane: "routeLayer", interactive: false }).addTo(group);
+    for (const o of overlay) L.polyline(o.lines, { className: o.cls, weight: 4, pane: "routeLayer", interactive: false }).addTo(group);
+    return () => void group.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay, tracks]);
 
   useEffect(() => {
     markers.current.forEach((m, i) => {
@@ -118,9 +137,9 @@ function positionAtTime(s: Streams, t: number): LatLon | null {
 }
 
 /** Route of one activity; `hoverT` (seconds) moves a marker in sync with the stream charts. */
-export function RouteMap({ streams, hoverT, label }: { streams: Streams; hoverT: number | null; label?: string[] | null }) {
+export function RouteMap({ streams, hoverT, label, overlay }: { streams: Streams; hoverT: number | null; label?: string[] | null; overlay?: Overlay | null }) {
   const tracks = useMemo(() => [{ points: latLons(streams.lat, streams.lon), lineClass: "route-line", hoverClass: "route-hover" }], [streams]);
   const hover = useMemo(() => [hoverT === null ? null : positionAtTime(streams, hoverT)], [hoverT, streams]);
   const labels = useMemo(() => [label ?? null], [label]);
-  return <TrackMap tracks={tracks} hover={hover} labels={labels} />;
+  return <TrackMap tracks={tracks} hover={hover} labels={labels} overlay={overlay} />;
 }

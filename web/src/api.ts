@@ -66,7 +66,20 @@ export interface ActivityLite {
   avgPower: number | null; elevGainM: number | null; load: number; loadSource: string;
   /** Only on the activity list. */
   review?: { status: ReviewStatus; score: number | null } | null;
+  /** Only on the activity list: the athlete's own rating, 1–5. */
+  feeling?: number | null;
 }
+
+/** Mirrors server/feedback.ts. */
+export const INTENTS = ["recovery", "easy", "long", "tempo", "intervals", "race", "other"] as const;
+export type Intent = (typeof INTENTS)[number];
+export const FEEDBACK_TAGS = [
+  "fresh_legs", "heavy_legs", "sore_muscles", "pain", "hard_breathing", "side_stitch", "stomach", "hungry",
+  "poor_sleep", "stressed", "ill", "heat", "cold", "wind", "rain", "rough_terrain", "with_others", "with_dog",
+] as const;
+export type FeedbackTag = (typeof FEEDBACK_TAGS)[number];
+
+export interface Feedback { feeling: number | null; intent: Intent | null; tags: FeedbackTag[]; note: string; updatedAt: string }
 
 export type ReviewStatus = "queued" | "running" | "done" | "error" | "quota" | "auth";
 
@@ -88,7 +101,6 @@ export type ReviewModel = "opus" | "sonnet" | "haiku";
 export interface ReviewSettings {
   profile: { sex: "male" | "female" | null; birthDate: string | null; goals: string; model: ReviewModel };
   apiKey: { updatedAt: string } | null;
-  since: string;
   models: ReviewModel[];
   maxGoals: number;
 }
@@ -176,7 +188,17 @@ export interface Streams {
 /** Garmin sport types for running: running, trail_running, treadmill_running, virtual_run, … */
 export const isRun = (type: string | null | undefined) => !!type && /run/.test(type);
 
-export interface HrLimits { limits: Record<string, number>; types: string[] }
+/** Fixed bpm, or a share of the heart rate reserve that follows the 30-day resting heart rate. */
+export type HrLimitSetting = number | { pct: number };
+export interface HrLimits {
+  limits: Record<string, HrLimitSetting>;
+  types: string[];
+  /** Today's values for % HRR limits: 30-day mean day resting HR (Garmin's until day values exist), max HR. */
+  basis: { rhr: number; maxHr: number; source: "day" | "garmin" };
+}
+
+/** Karvonen: resting HR plus a share of the heart rate reserve. */
+export const karvonen = (pct: number, rhr: number, maxHr: number) => Math.round(rhr + (pct / 100) * (maxHr - rhr));
 
 export const fmtDuration = (s: number) => {
   const h = Math.floor(s / 3600);

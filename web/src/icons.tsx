@@ -31,6 +31,11 @@ import {
   IconLadder,
   IconLungs,
   IconMap2,
+  IconMoodCry,
+  IconMoodEmpty,
+  IconMoodHappy,
+  IconMoodSad,
+  IconMoodSmile,
   IconMoon,
   IconMountain,
   IconPlusMinus,
@@ -55,6 +60,7 @@ import {
 
 // Tabler Icons (MIT). One icon per metric, the same wherever the metric appears.
 const METRIC = {
+  feedback: IconMoodSmile,
   hr: IconHeartRateMonitor,
   rhr: IconHeart,
   hrv: IconActivityHeartbeat,
@@ -175,5 +181,13 @@ function sportIcon(type: string): Icon {
 
 export function SportIcon({ type, size = 16 }: { type: string | null | undefined; size?: number }) {
   const C = sportIcon(type ?? "");
+  return <C className="mi" size={size} stroke={1.75} aria-hidden="true" />;
+}
+
+const MOODS = [IconMoodCry, IconMoodSad, IconMoodEmpty, IconMoodSmile, IconMoodHappy];
+
+/** Smiley for a feeling of 1 (awful) … 5 (great); decorative, the label names it. */
+export function MoodIcon({ feeling, size = 16 }: { feeling: number; size?: number }) {
+  const C = MOODS[Math.min(Math.max(feeling, 1), 5) - 1];
   return <C className="mi" size={size} stroke={1.75} aria-hidden="true" />;
 }

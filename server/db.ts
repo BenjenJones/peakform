@@ -107,6 +107,19 @@ db.exec(`
     FOREIGN KEY (user_id, activity_id) REFERENCES activity(user_id, id) ON DELETE CASCADE
   );
 
+  -- The athlete's own rating of an activity (feedback.ts). New in 0.11; additive.
+  CREATE TABLE IF NOT EXISTS activity_feedback (
+    user_id     INTEGER NOT NULL,
+    activity_id INTEGER NOT NULL,
+    feeling     INTEGER,         -- 1 (awful) … 5 (great)
+    intent      TEXT,            -- recovery | easy | long | tempo | intervals | race | other
+    tags        TEXT NOT NULL,   -- JSON array of tag keys
+    note        TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (user_id, activity_id),
+    FOREIGN KEY (user_id, activity_id) REFERENCES activity(user_id, id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS sync_log (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id  INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,

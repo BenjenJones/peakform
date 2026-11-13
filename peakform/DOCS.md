@@ -22,9 +22,9 @@ not include API credits, and subscription logins cannot be used for this.
    stored encrypted. Add your sex and birth date (Garmin does not share them), and optionally
    goals or other context for every review.
 
-From then on, every new sport activity is reviewed right after its import. Activities from before
-the update are only reviewed when you press **Review now** on their page. When the credit is used
-up, the app shows a notice and tries again later.
+From then on, press **Review now** on an activity's page. Rate the activity first (how it felt,
+what was planned, quick notes like heavy legs or heat): Claude takes that into account. When the
+credit is used up, the app shows a notice; top it up and start the review again.
 
 ## Master key
 

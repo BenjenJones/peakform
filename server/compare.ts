@@ -247,7 +247,7 @@ export function compareActivities(uid: number, idA: number, idB: number): Compar
     x: grid.map((x) => Math.round(x) / 1000),
     delta: grid.map((x, k) => (x <= shared && a.time[k] !== null && b.time[k] !== null ? b.time[k] - a.time[k] : null)),
     lead: Math.round(interpolator(tb.dist, tb.moving)(shared) - interpolator(ta.dist, ta.moving)(shared)),
-    hrLimit: hrLimitFor(uid, ra.type),
+    hrLimit: hrLimitFor(uid, ra.type, ra.start_local.slice(0, 10)),
     profiles: { a, b },
     splits: { a: splits(sa, ta), b: splits(sb, tb) },
   };

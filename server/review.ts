@@ -6,6 +6,7 @@ import { activityStreams, decoupling, hrLimitFor, isRun, listActivities, readine
 import { unpackJson } from "./codec.js";
 import { decryptSecret, encryptSecret, needsReencrypt } from "./crypto.js";
 import { db, kvGet, kvSet } from "./db.js";
+import { feedbackForPrompt } from "./feedback.js";
 import { metricSeries } from "./normalize.js";
 
 // ---------- Types ----------
@@ -116,27 +117,13 @@ export async function verifyAnthropicKey(key: string): Promise<"ok" | "rejected"
   }
 }
 
-// ---------- Which activities get reviewed ----------
+// ---------- Which activities can be reviewed ----------
+// Reviews run only on request, from the activity page, after the athlete had a chance to rate it.
 
 /** Everyday movement and relaxation are not training; everything else is. */
 const NOT_SPORT = /walk|breathwork|meditation|sleep|tai_chi/;
-const MIN_AUTO_S = 5 * 60;
 
 export const isSportType = (type: string | null) => !!type && !NOT_SPORT.test(type);
-
-/**
- * Day from which new activities are reviewed automatically. Set once, on the first start of the
- * version with reviews (or a user's first sync), so the existing history is never reviewed in bulk.
- */
-export function reviewSince(uid: number): string {
-  let since = kvGet<string>(uid, "reviewSince");
-  if (!since) kvSet(uid, "reviewSince", (since = isoDay(new Date())));
-  return since;
-}
-
-export function initReviewSince() {
-  for (const { id } of db.prepare("SELECT id FROM user").all() as { id: number }[]) reviewSince(id);
-}
 
 export function getReview(uid: number, activityId: number): ReviewRow | null {
   const r = db.prepare("SELECT status, trigger, review, model, error, updated_at FROM activity_review WHERE user_id = ? AND activity_id = ?").get(uid, activityId) as
@@ -152,31 +139,6 @@ export function reviewMap(uid: number) {
     .prepare("SELECT activity_id, status, json_extract(review, '$.score') AS score FROM activity_review WHERE user_id = ?")
     .all(uid) as { activity_id: number; status: ReviewStatus; score: number | null }[];
   return new Map(rows.map((r) => [r.activity_id, { status: r.status, score: r.score }]));
-}
-
-/** Retry a failed automatic review at most this often; quota resets take hours anyway. */
-const RETRY_AFTER_MS = 60 * 60_000;
-const MAX_AUTO_ATTEMPTS = 5;
-
-/** After a sync: queue new sport activities since the release day that have no review yet. */
-export function queueAutoReviews(uid: number) {
-  if (!reviewsConfigured(uid)) return;
-  const since = reviewSince(uid);
-  const rows = db
-    .prepare(
-      `SELECT a.id, a.type, a.summary, r.status, r.attempts, r.updated_at FROM activity a
-       LEFT JOIN activity_review r ON r.user_id = a.user_id AND r.activity_id = a.id
-       WHERE a.user_id = ? AND substr(a.start_local, 1, 10) >= ? AND a.fit_status != 'pending'`,
-    )
-    .all(uid, since) as { id: number; type: string | null; summary: string; status: ReviewStatus | null; attempts: number | null; updated_at: string | null }[];
-  const retryBefore = new Date(Date.now() - RETRY_AFTER_MS).toISOString();
-  for (const r of rows) {
-    if (!isSportType(r.type)) continue;
-    const s = JSON.parse(r.summary);
-    if ((s.movingDuration ?? s.duration ?? 0) < MIN_AUTO_S) continue;
-    const retry = (r.status === "error" || r.status === "quota" || r.status === "auth") && r.updated_at! < retryBefore && r.attempts! < MAX_AUTO_ATTEMPTS;
-    if (r.status === null || retry) enqueueReview(uid, r.id, "auto");
-  }
 }
 
 // ---------- Queue ----------
@@ -270,6 +232,7 @@ function systemPrompt(lang: "de" | "en", goals: string) {
     "You are an experienced endurance and fitness coach reviewing one completed training session of an athlete.",
     "You get the session's data from a Garmin watch plus context: the athlete's profile, recovery state around the session, recent training load and earlier sessions of the same sport.",
     "Judge the session against what it was most likely meant to be (easy, long, tempo, intervals, race, strength…), the athlete's current form and recovery, and their goals.",
+    "If athleteFeedback is given, it is the athlete's own rating: how the session felt (1–5), what it was planned as, and notes such as heavy legs, heat or pain. Judge the session against the planned type rather than guessing it, take conditions into account (heat, wind, terrain, running with others), and compare the felt effort with the data: a session that felt bad on data that look fine, or the other way round, is worth a remark. Address pain or illness first.",
     "Be specific and refer to actual numbers (pace, heart rate, zones, decoupling, laps). Do not invent data that is not given; if something important is missing, say so briefly.",
     "Do not give medical diagnoses. If the data suggests a health concern, recommend seeing a doctor.",
     "Score: 1–10 for how well the session served the athlete's training, given their state that day (10 = ideal execution and fit, 5 = okay but clear issues, 1 = counterproductive).",
@@ -348,7 +311,7 @@ export function buildInput(uid: number, id: number) {
     heartRateZones: Array.isArray(zones)
       ? zones.map((z) => ({ sport: z.sport, method: z.trainingMethod, restingHr: z.restingHeartRateUsed, lactateThresholdHr: z.lactateThresholdHeartRateUsed, maxHr: z.maxHeartRateUsed, zoneFloors: [z.zone1Floor, z.zone2Floor, z.zone3Floor, z.zone4Floor, z.zone5Floor] }))
       : undefined,
-    personalHrLimitForThisSport: hrLimitFor(uid, row.type) ?? undefined,
+    personalHrLimitForThisSport: hrLimitFor(uid, row.type, day) ?? undefined,
   };
 
   const zoneMinutes = (prefix: string) => {
@@ -429,6 +392,7 @@ export function buildInput(uid: number, id: number) {
   const data = {
     athlete,
     session,
+    athleteFeedback: feedbackForPrompt(uid, id),
     recovery: {
       note: "Values of the session's day (sleep and HRV of the night before), with the 7- and 60-day averages before it. Keys: hrv_night ms, rhr / rhr_night bpm, sleep_score 0-100, sleep_hours, bb_high = Body Battery peak, stress_avg 0-100.",
       ...recovery,

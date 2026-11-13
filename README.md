@@ -24,15 +24,15 @@ Garmin Personal API ──(pull, hourly)──▶ sync ──▶ SQLite (/data) 
 - **Analytics** (`server/analytics.ts`): CTL/ATL/TSB from Garmin training load (falls back to
   Banister TRIMP), acute:chronic ratio, mean-max curves, aerobic decoupling, lagged correlation
   matrix, and a 0–100 readiness score from z-scores against a 60-day personal baseline.
-- **Activity reviews** (`server/review.ts`): after each sync, new sport activities (everything but
-  walks, since the first start of 0.10) are queued and reviewed one at a time through the Claude
+- **Activity reviews** (`server/review.ts`): sport activities (everything but walks) are reviewed
+  on request from the activity page, one at a time, through the Claude
   API (`@anthropic-ai/sdk`, structured JSON output). Every user brings their own Anthropic API key
   from the Claude Console; subscription logins (Pro/Max OAuth tokens) are deliberately not
   supported, as Anthropic does not allow apps to use them on behalf of their users. The prompt
   carries the activity, laps and decoupling, recovery around it, training load, recent sessions,
-  sex/age from the profile and the user's own extra instructions. Out-of-credit
-  (`billing_error`, spend limit) and key failures are shown as a notice in the app and retried
-  hourly.
+  sex/age from the profile, the user's own extra instructions and their rating of the activity
+  (`server/feedback.ts`: feeling 1–5, planned session type, quick notes). Out-of-credit
+  (`billing_error`, spend limit) and key failures are shown as a notice in the app.
 
 ## Develop
 

@@ -1,11 +1,28 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import type { PageProps } from "../App";
-import { type ActivityLite, api, daysAgo, fmtCurveDuration, fmtDuration, fmtPace, isRun, type Review, send, type Streams, useApi } from "../api";
+import {
+  type ActivityLite,
+  api,
+  daysAgo,
+  FEEDBACK_TAGS,
+  type Feedback,
+  type FeedbackTag,
+  fmtCurveDuration,
+  fmtDuration,
+  fmtPace,
+  INTENTS,
+  isRun,
+  type Review,
+  send,
+  type Streams,
+  useApi,
+} from "../api";
 import { base, Chart, limitLine, line, type Mark, maxWithLimit, type Tokens } from "../Chart";
 import { errorText, fmtDate, fmtNum, type Key, useI18n } from "../i18n";
 import { ReplayControls, useReplay } from "../Replay";
 import { indexAt, RouteMap } from "../RouteMap";
-import { type MetricKey, MetricIcon, SportIcon } from "../icons";
+import { type MetricKey, MetricIcon, MoodIcon, SportIcon } from "../icons";
+import { availableLayers, type RouteLayer, useRouteLayer } from "../routeLayers";
 import { CardTitle, Info } from "../ui";
 import { Compare, ComparePicker } from "./Compare";
 
@@ -20,6 +37,9 @@ interface Detail {
   curves: Record<"power" | "speed" | "hr", { durationS: number; value: number }[]> | null;
   decoupling: Decoupling | null;
   hrLimit: number | null;
+  /** Resting (30-day day value) and max heart rate on the activity's day, for the % HRR map layer. */
+  hrr: { rhr: number; maxHr: number };
+  feedback: Feedback | null;
   review: Review | null;
   reviewable: boolean;
 }
@@ -97,6 +117,7 @@ export function Activities({ range, refreshKey, selectedId, compareId }: PagePro
                 <th className="num">{t("activities.time")}</th><th className="num">{t("activities.distance")}</th><th className="num">{t("activities.avgHr")}</th>
                 <th className="num">{t("activities.avgW")}</th><th className="num">{t("activities.elev")}</th>
                 <th className="num">{t("activities.load")}<Info help="help.load" /></th>
+                <th className="num">{t("feedback.column")}</th>
                 <th className="num">{t("review.column")}</th>
               </tr>
             </thead>
@@ -115,6 +136,13 @@ export function Activities({ range, refreshKey, selectedId, compareId }: PagePro
                   <td className="num">{a.avgPower ? Math.round(a.avgPower) : ""}</td>
                   <td className="num">{a.elevGainM ? Math.round(a.elevGainM) + " m" : ""}</td>
                   <td className="num" title={a.loadSource}>{a.load ? Math.round(a.load) : ""}</td>
+                  <td className="num">
+                    {a.feeling ? (
+                      <span title={t(`feedback.feeling.${a.feeling}` as Key)}>
+                        <MoodIcon feeling={a.feeling} />
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="num">
                     {a.review?.score ? (
                       <ScoreBadge score={a.review.score} />
@@ -146,6 +174,14 @@ function ActivityDetail({ id }: { id: number }) {
   const { t: tr, lang, sport } = useI18n();
   const { data: a, error } = useApi<Detail>(`activities/${id}`);
   const [hoverT, setHoverT] = useState<number | null>(null);
+  const [layer, setLayer] = useState<RouteLayer | null>(storedLayer);
+  const pickLayer = (l: RouteLayer) => {
+    const next = layer === l ? null : l;
+    setLayer(next);
+    try {
+      localStorage.setItem(LAYER_KEY, next ?? "");
+    } catch {}
+  };
   const thinned = useMemo(() => (a?.streams ? thin(a.streams) : null), [a]);
   const run = isRun(a?.type);
   // Replay by elapsed time, the x axis of the charts: pauses show as the dot standing still.
@@ -227,6 +263,10 @@ function ActivityDetail({ id }: { id: number }) {
     if (has("alt")) out.push({ title: tr("activities.elevChart"), icon: "elev", option: streamChart("alt", tr("activities.alt"), "s4"), color: "s4" });
     return out;
   }, [thinned, streamChart, a, run, lang]);
+
+  const layers = useMemo(() => (a?.streams ? availableLayers(a.streams, !!a.hrr && a.hrr.maxHr > a.hrr.rhr) : []), [a]);
+  const shownLayer = layer && layers.includes(layer) ? layer : null;
+  const { overlay, legend } = useRouteLayer(a?.streams ?? null, shownLayer, { run, hrr: a?.hrr ?? null, spm: tr("activities.spm"), pctHrr: tr("account.hrLimitsPct") });
 
   const dec = a?.decoupling;
   const decOpt = useCallback(
@@ -337,6 +377,7 @@ function ActivityDetail({ id }: { id: number }) {
         </div>
       </div>
 
+      <FeedbackCard id={id} initial={a.feedback} />
       {a.reviewable && <ReviewCard id={id} initial={a.review} />}
 
       {a.fitStatus !== "ok" && (
@@ -351,7 +392,27 @@ function ActivityDetail({ id }: { id: number }) {
             <MetricIcon m="route" />
             {tr("activities.route")}
           </h2>
-          <RouteMap streams={a.streams} hoverT={mapT} label={replayLabel} />
+          {layers.length > 0 && (
+            <div className="route-layers seg" role="group" aria-label={tr("activities.mapLayers")}>
+              {layers.map((l) => (
+                <button key={l} type="button" className="btn" aria-pressed={shownLayer === l} onClick={() => pickLayer(l)}>
+                  {tr(l === "cadence" && !run ? "activities.layer.rpm" : (`activities.layer.${l}` as Key))}
+                </button>
+              ))}
+            </div>
+          )}
+          <RouteMap streams={a.streams} hoverT={mapT} label={replayLabel} overlay={overlay} />
+          {legend && (
+            <div className="route-legend">
+              <span>{legend.low}</span>
+              <span className="ramp" aria-hidden>
+                {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+                  <span key={i} style={{ background: `var(--rl-${i})` }} />
+                ))}
+              </span>
+              <span>{legend.high}</span>
+            </div>
+          )}
           <ReplayControls r={player} />
         </div>
       )}
@@ -441,6 +502,92 @@ function ActivityDetail({ id }: { id: number }) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+const LAYER_KEY = "routeLayer";
+/** Last chosen map layer, per browser. */
+function storedLayer(): RouteLayer | null {
+  try {
+    const v = localStorage.getItem(LAYER_KEY);
+    return v === "pace" || v === "hr" || v === "cadence" || v === "grade" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+type FeedbackInput = Omit<Feedback, "updatedAt">;
+
+/** The athlete's own rating: feeling, planned session type, quick notes. Saved on every change. */
+function FeedbackCard({ id, initial }: { id: number; initial: Feedback | null }) {
+  const { t } = useI18n();
+  const [f, setF] = useState<FeedbackInput>(initial ?? { feeling: null, intent: null, tags: [], note: "" });
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const save = async (next: FeedbackInput) => {
+    setF(next);
+    setMsg(null);
+    try {
+      await send(`activities/${id}/feedback`, "PUT", next);
+      setMsg({ ok: true, text: t("feedback.saved") });
+    } catch (e) {
+      setMsg({ ok: false, text: errorText(t, e) });
+    }
+  };
+  const toggleTag = (tag: FeedbackTag) => save({ ...f, tags: f.tags.includes(tag) ? f.tags.filter((x) => x !== tag) : [...f.tags, tag] });
+
+  return (
+    <div className="card feedback">
+      <CardTitle icon="feedback" title={t("feedback.title")} sub={t("feedback.sub")} />
+      <h3>{t("feedback.feelingQ")}</h3>
+      <div className="moods" role="group" aria-label={t("feedback.feelingQ")}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            className="btn"
+            aria-pressed={f.feeling === n}
+            aria-label={t(`feedback.feeling.${n}` as Key)}
+            title={t(`feedback.feeling.${n}` as Key)}
+            onClick={() => save({ ...f, feeling: f.feeling === n ? null : n })}
+          >
+            <MoodIcon feeling={n} size={26} />
+          </button>
+        ))}
+      </div>
+      <h3>{t("feedback.intentQ")}</h3>
+      <div className="pills" role="group" aria-label={t("feedback.intentQ")}>
+        {INTENTS.map((i) => (
+          <button key={i} type="button" className="btn" aria-pressed={f.intent === i} onClick={() => save({ ...f, intent: f.intent === i ? null : i })}>
+            {t(`feedback.intent.${i}` as Key)}
+          </button>
+        ))}
+      </div>
+      <h3>{t("feedback.tagsQ")}</h3>
+      <div className="pills" role="group" aria-label={t("feedback.tagsQ")}>
+        {FEEDBACK_TAGS.map((tag) => (
+          <button key={tag} type="button" className="btn" aria-pressed={f.tags.includes(tag)} onClick={() => toggleTag(tag)}>
+            {t(`feedback.tag.${tag}` as Key)}
+          </button>
+        ))}
+      </div>
+      <label htmlFor={`feedback-note-${id}`} className="sub" style={{ display: "block" }}>
+        {t("feedback.note")}
+      </label>
+      <textarea
+        id={`feedback-note-${id}`}
+        className="input"
+        rows={2}
+        maxLength={1000}
+        style={{ minHeight: 0 }}
+        placeholder={t("feedback.notePlaceholder")}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onBlur={() => note.trim() !== f.note && save({ ...f, note: note.trim() })}
+      />
+      {msg && <div className={msg.ok ? "sub" : "error"}>{msg.text}</div>}
     </div>
   );
 }
