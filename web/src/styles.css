@@ -247,25 +247,23 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.4; }
   :root:not([data-theme="light"]) .route-map .leaflet-control-attribution a { color: var(--ink-2); }
 }
 .route-card { display: flex; flex-direction: column; }
-/* Route coloured by a value (routeLayers.ts): one hue light to dark, grade diverging around grey. */
-.route-map path.route-casing { stroke: var(--surface); stroke-linecap: round; stroke-linejoin: round; }
-.route-map path[class^="rl-"], .route-map path[class^="rg-"] { stroke-linecap: round; stroke-linejoin: round; }
+/* Route coloured by a value (routeLayers.ts): green (low) over yellow to red (high), every layer the
+   same. A dark casing keeps the light middle steps readable on the tiles. */
+.route-map path.route-casing { stroke: rgba(11, 11, 11, 0.45); stroke-linecap: round; stroke-linejoin: round; }
+.route-map path[class^="rl-"] { stroke-linecap: round; stroke-linejoin: round; }
 :root {
-  --rl-0: #a9c9f2; --rl-1: #80aeea; --rl-2: #5893e1; --rl-3: #2f78d6; --rl-4: #2263b6; --rl-5: #1a4f93; --rl-6: #123a6e;
-  --rg-0: #2a78d6; --rg-1: #6a9fe2; --rg-2: #a9c6ee; --rg-3: #b9b8b1; --rg-4: #eea3a2; --rg-5: #e97473; --rg-6: #d03b3b;
+  --rl-0: #1a9850; --rl-1: #66bd63; --rl-2: #a6d96a; --rl-3: #fee08b; --rl-4: #fdae61; --rl-5: #f46d43; --rl-6: #d73027;
   --rl-none: #b9b8b1;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --rl-0: #1d4b85; --rl-1: #2862a8; --rl-2: #3479cc; --rl-3: #4f91e0; --rl-4: #75aae8; --rl-5: #9cc3f0; --rl-6: #c4dbf7;
-    --rg-0: #3987e5; --rg-1: #6aa3ea; --rg-2: #9cbff0; --rg-3: #6b6a64; --rg-4: #f0a0a0; --rg-5: #e87777; --rg-6: #e05252;
+    --rl-0: #2ea85f; --rl-1: #6fc46b; --rl-2: #addf74; --rl-3: #fee391; --rl-4: #fdb56b; --rl-5: #f57a52; --rl-6: #e04a3c;
     --rl-none: #6b6a64;
   }
+  :root:not([data-theme="light"]) .route-map path.route-casing { stroke: rgba(0, 0, 0, 0.6); }
 }
 .rl-0 { stroke: var(--rl-0); } .rl-1 { stroke: var(--rl-1); } .rl-2 { stroke: var(--rl-2); } .rl-3 { stroke: var(--rl-3); }
 .rl-4 { stroke: var(--rl-4); } .rl-5 { stroke: var(--rl-5); } .rl-6 { stroke: var(--rl-6); } .rl-none { stroke: var(--rl-none); }
-.rg-0 { stroke: var(--rg-0); } .rg-1 { stroke: var(--rg-1); } .rg-2 { stroke: var(--rg-2); } .rg-3 { stroke: var(--rg-3); }
-.rg-4 { stroke: var(--rg-4); } .rg-5 { stroke: var(--rg-5); } .rg-6 { stroke: var(--rg-6); }
 .route-layers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
 .route-legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-2); margin-top: 8px; font-variant-numeric: tabular-nums; flex-wrap: wrap; }
 .route-legend .ramp { display: inline-flex; gap: 2px; }

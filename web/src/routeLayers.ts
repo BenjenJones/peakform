@@ -3,20 +3,19 @@ import { fmtPace, type Streams } from "./api";
 import { fmtNum } from "./i18n";
 import type { LatLon } from "./RouteMap";
 
-// Colours the route by one value at a time. Magnitudes (pace, heart rate, cadence) use one hue from
-// light to dark, grade a diverging scale with a grey midpoint: blue downhill, red uphill.
+// Colours the route by one value at a time, green (low) over yellow to red (high). Grade runs from
+// steep downhill (green) over flat (yellow) to steep uphill (red).
 
 export type RouteLayer = "pace" | "hr" | "cadence" | "grade";
 export const ROUTE_LAYERS: RouteLayer[] = ["pace", "hr", "cadence", "grade"];
 
-/** Colour steps; CSS classes rl-0…rl-6 (sequential) and rg-0…rg-6 (diverging), see styles.css. */
+/** Colour steps; CSS classes rl-0…rl-6, see styles.css. */
 const STEPS = 7;
 
 /** Polylines per colour step, drawn above the plain route. */
 export type Overlay = { cls: string; lines: LatLon[][] }[];
 
 export interface Legend {
-  diverging: boolean;
   low: string;
   high: string;
 }
@@ -84,7 +83,6 @@ export function useRouteLayer(
       if (hi - lo < 1e-6) hi = lo + 1;
     }
     const step = (v: number) => Math.min(STEPS - 1, Math.max(0, Math.round(((v - lo) / (hi - lo)) * (STEPS - 1))));
-    const prefix = diverging ? "rg-" : "rl-";
 
     // Consecutive segments of the same step become one line, so a long ride stays a few hundred paths.
     const groups = new Map<string, LatLon[][]>();
@@ -98,7 +96,7 @@ export function useRouteLayer(
         continue;
       }
       const v = values[i];
-      const cls = v == null ? "rl-none" : prefix + step(v);
+      const cls = v == null ? "rl-none" : `rl-${step(v)}`;
       if (current && cls === currentCls) current.push(b);
       else {
         current = [a, b];
@@ -115,7 +113,7 @@ export function useRouteLayer(
       if (layer === "cadence") return `${fmtNum(v)} ${run ? opts.spm : "rpm"}`;
       return `${v > 0 ? "+" : ""}${fmtNum(v)} %`;
     };
-    return { overlay, legend: { diverging, low: fmt(lo), high: fmt(hi) } };
+    return { overlay, legend: { low: fmt(lo), high: fmt(hi) } };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s, layer, opts.run, opts.hrr?.rhr, opts.hrr?.maxHr, opts.spm, opts.pctHrr]);
 }

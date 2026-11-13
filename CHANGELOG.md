@@ -9,7 +9,8 @@
   heat, wind or running with others, plus an optional note. Saved right away; the smiley also
   shows in the activity list.
 - **Route map layers**: colour the route by **pace**, **% heart rate reserve**, **cadence (SPM)**
-  or **grade**, one at a time, with a legend below the map. Tap the active layer again to turn it
+  or **grade**, one at a time, from green (low) over yellow to red (high), with a legend below the
+  map. Tap the active layer again to turn it
   off; the choice is remembered in this browser.
 - **Account → Heart rate limits**: each sport's limit can now be set as **% of heart rate reserve**
   (Karvonen: resting HR + share × (max HR − resting HR)) instead of a fixed bpm value. The form

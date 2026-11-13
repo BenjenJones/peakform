@@ -407,7 +407,7 @@ function ActivityDetail({ id }: { id: number }) {
               <span>{legend.low}</span>
               <span className="ramp" aria-hidden>
                 {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-                  <span key={i} style={{ background: `var(--${legend.diverging ? "rg" : "rl"}-${i})` }} />
+                  <span key={i} style={{ background: `var(--rl-${i})` }} />
                 ))}
               </span>
               <span>{legend.high}</span>
