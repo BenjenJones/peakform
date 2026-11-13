@@ -6,7 +6,6 @@ import { activityDetail, activityDownload, activitySearch, rangeEndpoints, singl
 import { parseFit } from "./garmin/fit.js";
 import { rebuildDailyMetrics } from "./normalize.js";
 import { syncRestingHr } from "./restingHr.js";
-import { queueAutoReviews } from "./review.js";
 import { loadApiKey, setCredentialError, usersWithKeys } from "./users.js";
 
 /** Days refetched on every sync, since today's/yesterday's data keeps changing. */
@@ -158,12 +157,6 @@ async function syncUser(uid: number): Promise<void> {
     rebuildDailyMetrics(uid);
     compactStorage();
     setCredentialError(uid, null);
-    // After the metrics rebuild, so reviews see the night and day around each new activity.
-    try {
-      queueAutoReviews(uid);
-    } catch (e) {
-      state.errors.push(`reviews: ${(e as Error).message}`);
-    }
     if (state.errors.length) {
       status = "partial";
       message = state.errors.join("\n");

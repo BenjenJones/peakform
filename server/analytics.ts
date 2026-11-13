@@ -1,5 +1,5 @@
 import { decodeStreams } from "./codec.js";
-import { db, kvGet } from "./db.js";
+import { db, kvGet, kvSet } from "./db.js";
 import type { Streams } from "./garmin/fit.js";
 import { CURATED, metricSeries, type Series } from "./normalize.js";
 
@@ -285,9 +285,61 @@ export function decoupling(streams: Streams, run: boolean): Decoupling | null {
 
 // ---------- HR limits ----------
 
-/** Upper heart rate limit per sport type, e.g. { running: 150 }; drawn into heart rate charts. */
-export const hrLimits = (uid: number) => kvGet<Record<string, number>>(uid, "hrLimits") ?? {};
-export const hrLimitFor = (uid: number, type: string | null) => (type ? (hrLimits(uid)[type] ?? null) : null);
+/** Fixed bpm, or a share of the heart rate reserve (Karvonen) that follows the resting heart rate. */
+export type HrLimitSetting = number | { pct: number };
+
+/** Upper heart rate limit per sport type, e.g. { running: 150, cycling: { pct: 70 } }; drawn into heart rate charts. */
+export const hrLimits = (uid: number) => kvGet<Record<string, HrLimitSetting>>(uid, "hrLimits") ?? {};
+
+/** Days of resting heart rate averaged for a % HRR limit. A single day's value would raise the limit on bad days. */
+const HRR_WINDOW = 30;
+
+/**
+ * Resting and max heart rate for a % HRR limit on `date`: the day resting heart rate (lowest
+ * 30 minutes while awake, see restingHr.ts) averaged over the 30 days up to that day. Garmin's own
+ * value is taken from the night, so it would set the limits a few beats lower than the day value
+ * they are usually worked out with. Before day values exist: Garmin's, else the all-time median.
+ * Max heart rate as for TRIMP.
+ */
+export function hrrBasis(uid: number, date: string) {
+  const bounds = hrBounds(uid);
+  const from = addDays(date, -(HRR_WINDOW - 1));
+  const series = (key: string) => metricSeries(uid, key, from, date).map((r) => r.value);
+  const day = series("rhr_day");
+  const recent = day.length ? day : series("rhr");
+  return { rhr: recent.length ? mean(recent) : bounds.rhr, maxHr: bounds.maxHr, source: day.length ? ("day" as const) : ("garmin" as const), days: recent.length };
+}
+
+/**
+ * Once per user (0.11): fixed bpm limits become % HRR at today's resting and max heart rate, so they
+ * keep their level and follow the resting heart rate from then on. Users without recent resting
+ * heart rate keep bpm until the next start.
+ */
+export function migrateHrLimitsToHrr() {
+  const today = isoDay(new Date());
+  for (const { id: uid } of db.prepare("SELECT id FROM user").all() as { id: number }[]) {
+    if (kvGet<boolean>(uid, "hrLimitsHrrMigrated")) continue;
+    const limits = hrLimits(uid);
+    if (Object.values(limits).some((v) => typeof v === "number")) {
+      const { rhr, maxHr, days } = hrrBasis(uid, today);
+      if (!days || maxHr <= rhr) continue;
+      const pct = (bpm: number) => Math.min(100, Math.max(30, Math.round(((bpm - rhr) / (maxHr - rhr)) * 100)));
+      kvSet(uid, "hrLimits", Object.fromEntries(Object.entries(limits).map(([k, v]) => [k, typeof v === "number" ? { pct: pct(v) } : v])));
+    }
+    kvSet(uid, "hrLimitsHrrMigrated", true);
+  }
+}
+
+export const karvonen = (pct: number, rhr: number, maxHr: number) => Math.round(rhr + (pct / 100) * (maxHr - rhr));
+
+/** Limit in bpm for an activity of `type` on `date`. */
+export function hrLimitFor(uid: number, type: string | null, date: string): number | null {
+  const setting = type ? hrLimits(uid)[type] : undefined;
+  if (setting === undefined) return null;
+  if (typeof setting === "number") return setting;
+  const { rhr, maxHr } = hrrBasis(uid, date);
+  return karvonen(setting.pct, rhr, maxHr);
+}
 
 // ---------- Insights ----------
 

@@ -12,6 +12,9 @@ import {
   decoupling,
   hrLimitFor,
   hrLimits,
+  type HrLimitSetting,
+  hrrBasis,
+  migrateHrLimitsToHrr,
   INSIGHT_METRICS,
   isRun,
   listActivities,
@@ -27,6 +30,7 @@ import { compareActivities, compareCandidates } from "./compare.js";
 import { config } from "./config.js";
 import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
+import { feelingMap, getFeedback, parseFeedback, setFeedback } from "./feedback.js";
 import { dayHeartRate, night } from "./night.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
 import {
@@ -35,10 +39,8 @@ import {
   deleteAnthropicKey,
   enqueueReview,
   getReview,
-  initReviewSince,
   isSportType,
   MAX_GOALS,
-  queueAutoReviews,
   reencryptAnthropicKeys,
   resumeReviews,
   REVIEW_MODELS,
@@ -47,7 +49,6 @@ import {
   reviewProfile,
   reviewQueueInfo,
   reviewsConfigured,
-  reviewSince,
   setReviewProfile,
   storeAnthropicKey,
   verifyAnthropicKey,
@@ -162,18 +163,21 @@ api.post("/me/password", async (c) => {
 api.get("/me/hr-limits", (c) => {
   const uid = c.get("user").id;
   const types = db.prepare("SELECT type, count(*) AS n FROM activity WHERE user_id = ? AND type IS NOT NULL GROUP BY type ORDER BY n DESC").all(uid) as { type: string }[];
-  return c.json({ limits: hrLimits(uid), types: types.map((r) => r.type) });
+  const basis = hrrBasis(uid, today());
+  return c.json({ limits: hrLimits(uid), types: types.map((r) => r.type), basis: { ...basis, rhr: Math.round(basis.rhr) } });
 });
 
 api.put("/me/hr-limits", async (c) => {
   const { limits } = await c.req.json<{ limits?: Record<string, unknown> }>();
-  const clean: Record<string, number> = {};
+  const clean: Record<string, HrLimitSetting> = {};
   for (const [type, v] of Object.entries(limits ?? {})) {
-    const bpm = Number(v);
-    if (!/^[a-z0-9_]{1,64}$/.test(type) || !Number.isInteger(bpm) || bpm < 60 || bpm > 240) {
-      return c.json({ error: `Invalid heart rate limit for ${type}`, code: "hr_limit" }, 400);
-    }
-    clean[type] = bpm;
+    const pct = typeof v === "object" && v !== null ? Number((v as { pct?: unknown }).pct) : null;
+    const bpm = pct === null ? Number(v) : null;
+    const ok =
+      /^[a-z0-9_]{1,64}$/.test(type) &&
+      (pct !== null ? Number.isInteger(pct) && pct >= 30 && pct <= 100 : Number.isInteger(bpm) && bpm! >= 60 && bpm! <= 240);
+    if (!ok) return c.json({ error: `Invalid heart rate limit for ${type}`, code: "hr_limit" }, 400);
+    clean[type] = pct !== null ? { pct } : bpm!;
   }
   kvSet(c.get("user").id, "hrLimits", clean);
   return c.json({ ok: true });
@@ -186,7 +190,6 @@ api.get("/me/review-settings", (c) => {
   return c.json({
     profile: reviewProfile(uid),
     apiKey: anthropicKeyInfo(uid), // never the key itself
-    since: reviewSince(uid),
     models: REVIEW_MODELS,
     maxGoals: MAX_GOALS,
   });
@@ -217,7 +220,6 @@ api.put("/me/anthropic-key", async (c) => {
   if (check === "unreachable") return c.json({ error: "Could not reach Anthropic to verify the key", code: "anthropic_key_unreachable" }, 502);
   storeAnthropicKey(uid, key);
   clearReviewNotice(uid);
-  queueAutoReviews(uid);
   return c.json({ ok: true });
 });
 
@@ -229,6 +231,16 @@ api.delete("/me/anthropic-key", (c) => {
 api.delete("/me/review-notice", (c) => {
   clearReviewNotice(c.get("user").id);
   return c.json({ ok: true });
+});
+
+api.put("/activities/:id/feedback", async (c) => {
+  const uid = c.get("user").id;
+  const id = Number(c.req.param("id"));
+  if (!db.prepare("SELECT 1 FROM activity WHERE user_id = ? AND id = ?").get(uid, id)) return c.json({ error: "not found" }, 404);
+  const f = parseFeedback(await c.req.json<Record<string, unknown>>());
+  if (typeof f === "string") return c.json({ error: f, code: "feedback" }, 400);
+  setFeedback(uid, id, f);
+  return c.json({ feedback: getFeedback(uid, id) });
 });
 
 api.get("/activities/:id/review", (c) => c.json({ review: getReview(c.get("user").id, Number(c.req.param("id"))) }));
@@ -326,7 +338,10 @@ api.get("/heartrate", async (c) => {
 api.get("/activities", (c) => {
   const uid = c.get("user").id;
   const reviews = reviewMap(uid);
-  return c.json(listActivities(uid, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today()).map((a) => ({ ...a, review: reviews.get(a.id) ?? null })));
+  const feelings = feelingMap(uid);
+  return c.json(
+    listActivities(uid, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today()).map((a) => ({ ...a, review: reviews.get(a.id) ?? null, feeling: feelings.get(a.id) ?? null })),
+  );
 });
 
 api.get("/activities/:id", (c) => {
@@ -351,7 +366,9 @@ api.get("/activities/:id", (c) => {
       ? { power: meanMax(streams, "power"), speed: meanMax(streams, "speed"), hr: meanMax(streams, "hr") }
       : null,
     decoupling: streams ? decoupling(streams, run) : null,
-    hrLimit: hrLimitFor(uid, row.type),
+    hrLimit: hrLimitFor(uid, row.type, (row.start_local ?? "").slice(0, 10)),
+    hrr: hrrBasis(uid, (row.start_local ?? "").slice(0, 10)),
+    feedback: getFeedback(uid, id),
     review: getReview(uid, id),
     reviewable: isSportType(row.type),
   });
@@ -408,8 +425,7 @@ app.get("*", (c) => c.html(indexHtml));
 
 reencryptCredentials();
 reencryptAnthropicKeys();
-// Before the first sync: activities synced from now on are reviewed, the existing history is not.
-initReviewSince();
+migrateHrLimitsToHrr();
 resumeReviews();
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {

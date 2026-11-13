@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.11.0 – Your own rating, map layers and adaptive heart rate limits
+
+### Added
+
+- **Your rating** on every activity: how it felt on five smileys, what was planned (recovery, easy,
+  long, tempo, intervals, race) and quick notes such as heavy legs, sore muscles, pain, slept badly,
+  heat, wind or running with others, plus an optional note. Saved right away; the smiley also
+  shows in the activity list.
+- **Route map layers**: colour the route by **pace**, **% heart rate reserve**, **cadence (SPM)**
+  or **grade**, one at a time, with a legend below the map. Tap the active layer again to turn it
+  off; the choice is remembered in this browser.
+- **Account → Heart rate limits**: each sport's limit can now be set as **% of heart rate reserve**
+  (Karvonen: resting HR + share × (max HR − resting HR)) instead of a fixed bpm value. The form
+  shows today's limit in bpm next to the percentage.
+- **Existing limits are converted once** from bpm to % of heart rate reserve at today's resting
+  and max heart rate, so they stay where they were and follow your resting heart rate from now
+  on. Sports without a limit suggest the percentage you use most.
+- The resting heart rate for this is the **day** value, averaged over the 30 days up to the
+  activity's day, so a single bad night does not raise the limit, and older activities keep the
+  limit that applied then. Until day values exist, Garmin's resting heart rate is used. Max heart
+  rate is taken from your Garmin heart rate zones, otherwise your highest recorded.
+
+### Changed
+
+- **Reviews by Claude run only when you press Review now**, no longer automatically after import,
+  so you can add your rating first. Claude judges the session against what was planned, takes
+  conditions and how it felt into account and remarks when the feeling and the data disagree.
+
 ## 0.10.0 – Activity reviews by Claude
 
 ### Added

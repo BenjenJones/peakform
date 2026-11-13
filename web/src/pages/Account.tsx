@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type HrLimits as HrLimitsData, type Me, type ReviewModel, type ReviewSettings, send, useApi } from "../api";
+import { type HrLimits as HrLimitsData, karvonen, type Me, type ReviewModel, type ReviewSettings, send, useApi } from "../api";
 import { errorText, fmtDate, useI18n } from "../i18n";
 import { prefSet, startTab, type Tab, TABS } from "../prefs";
 
@@ -141,7 +141,7 @@ function ReviewSetup() {
   return (
     <div className="card">
       <h2>{t("review.setupTitle")}</h2>
-      <p className="sub">{t("review.setupSub", { date: fmtDate(data.since) })}</p>
+      <p className="sub">{t("review.setupSub")}</p>
       <div className="grid">
         <form className="span-6" onSubmit={saveToken}>
           <h2>{t("review.tokenTitle")}</h2>
@@ -249,21 +249,52 @@ function Prefs() {
   );
 }
 
+interface LimitInput {
+  value: string;
+  unit: "bpm" | "pct";
+}
+
 /** Upper heart rate limit per sport, drawn into the heart rate charts. Stored on the server. */
 function HrLimits() {
   const { t, sport } = useI18n();
   const { data } = useApi<HrLimitsData>("me/hr-limits");
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, LimitInput>>({});
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
-    if (data) setValues(Object.fromEntries(Object.entries(data.limits).map(([k, v]) => [k, String(v)])));
+    if (data) {
+      setValues(
+        Object.fromEntries(
+          Object.entries(data.limits).map(([k, v]) => [k, typeof v === "number" ? { value: String(v), unit: "bpm" } : { value: String(v.pct), unit: "pct" }]),
+        ),
+      );
+    }
   }, [data]);
   if (!data?.types.length) return null;
+  const { basis } = data;
+  const input = (type: string): LimitInput => values[type] ?? { value: "", unit: "pct" };
+  // Suggestion for sports without a limit: the share used most for the others.
+  const pcts = Object.values(data.limits).flatMap((v) => (typeof v === "number" ? [] : [v.pct]));
+  const suggested = pcts.length ? [...pcts].sort((x, y) => pcts.filter((p) => p === y).length - pcts.filter((p) => p === x).length)[0] : null;
+  const set = (type: string, patch: Partial<LimitInput>) => setValues({ ...values, [type]: { ...input(type), ...patch } });
+  /** Switching the unit keeps the limit and converts the number, so 130 bpm does not become 130 %. */
+  const convert = (v: LimitInput, unit: LimitInput["unit"]): LimitInput => {
+    const n = Number(v.value);
+    if (unit === v.unit || !v.value.trim() || !n || basis.maxHr <= basis.rhr) return { value: v.value, unit };
+    const value =
+      unit === "pct"
+        ? Math.min(100, Math.max(30, Math.round(((n - basis.rhr) / (basis.maxHr - basis.rhr)) * 100)))
+        : Math.min(240, Math.max(60, karvonen(n, basis.rhr, basis.maxHr)));
+    return { value: String(value), unit };
+  };
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setMsg(null);
-    const limits = Object.fromEntries(Object.entries(values).filter(([, v]) => v.trim()).map(([k, v]) => [k, Number(v)]));
+    const limits = Object.fromEntries(
+      Object.entries(values)
+        .filter(([, v]) => v.value.trim())
+        .map(([k, v]) => [k, v.unit === "pct" ? { pct: Number(v.value) } : Number(v.value)]),
+    );
     try {
       await send("me/hr-limits", "PUT", { limits });
       setMsg({ ok: true, text: t("account.hrLimitsSaved") });
@@ -278,29 +309,43 @@ function HrLimits() {
       <p className="sub">{t("account.hrLimitsSub")}</p>
       <table>
         <tbody>
-          {data.types.map((type) => (
-            <tr key={type}>
-              <td>{sport(type)}</td>
-              <td className="num" style={{ width: 120 }}>
-                <input
-                  className="input"
-                  style={{ margin: 0, textAlign: "right" }}
-                  type="number"
-                  inputMode="numeric"
-                  min={60}
-                  max={240}
-                  step={1}
-                  placeholder="–"
-                  aria-label={`${sport(type)} (bpm)`}
-                  value={values[type] ?? ""}
-                  onChange={(e) => setValues({ ...values, [type]: e.target.value })}
-                />
-              </td>
-              <td className="muted" style={{ width: 40 }}>bpm</td>
-            </tr>
-          ))}
+          {data.types.map((type) => {
+            const v = input(type);
+            const pct = v.unit === "pct";
+            const n = Number(v.value);
+            return (
+              <tr key={type}>
+                <td>{sport(type)}</td>
+                <td className="num muted">{pct && v.value.trim() && n ? `≈ ${karvonen(n, basis.rhr, basis.maxHr)} bpm` : ""}</td>
+                <td className="num" style={{ width: 90 }}>
+                  <input
+                    className="input"
+                    style={{ margin: 0, textAlign: "right" }}
+                    type="number"
+                    inputMode="numeric"
+                    min={pct ? 30 : 60}
+                    max={pct ? 100 : 240}
+                    step={1}
+                    placeholder={pct && suggested ? String(suggested) : "–"}
+                    aria-label={`${sport(type)} (${pct ? t("account.hrLimitsPct") : "bpm"})`}
+                    value={v.value}
+                    onChange={(e) => set(type, { value: e.target.value })}
+                  />
+                </td>
+                <td style={{ width: 90 }}>
+                  <select value={v.unit} onChange={(e) => set(type, convert(v, e.target.value as LimitInput["unit"]))} aria-label={t("account.hrLimitsUnit")}>
+                    <option value="bpm">bpm</option>
+                    <option value="pct">{t("account.hrLimitsPct")}</option>
+                  </select>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
+      <p className="sub">
+        {t("account.hrLimitsHrr", { rhr: basis.rhr, max: basis.maxHr })}
+      </p>
       {msg && <div className={msg.ok ? "success" : "error"}>{msg.text}</div>}
       <button className="btn primary" style={{ marginTop: 8 }}>
         {t("account.hrLimitsSave")}
