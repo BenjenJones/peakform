@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useCallback, useContext } from "react";
+import { createContext, type ReactNode, type TouchEvent, useCallback, useContext, useEffect, useRef } from "react";
 import type { PageProps } from "../App";
 import { type DayData, type DayHr, type DayMetric, fmtDuration, type Night, type Point, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
@@ -19,6 +19,55 @@ const shift = (day: string, n: number) => {
   return d.toISOString().slice(0, 10);
 };
 const go = (day: string) => (location.hash = `#/day/${day}`);
+
+/**
+ * Horizontal swipe on touch screens (left: next day, right: previous) and the arrow keys on desktop.
+ * Not on charts (dragging there moves the tooltip), form fields or anything that scrolls sideways.
+ */
+function useDaySwipe(onPrev: (() => void) | null, onNext: (() => void) | null) {
+  const start = useRef<{ x: number; y: number; t: number } | null>(null);
+
+  // Desktop: arrow keys, unless typing in a field or a dialog is open (it locks the body scroll).
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      if ((e.target as HTMLElement | null)?.closest?.("input, select, textarea, [contenteditable]")) return;
+      if (document.body.style.overflow === "hidden") return;
+      const step = e.key === "ArrowLeft" ? onPrev : onNext;
+      if (!step) return;
+      e.preventDefault();
+      step();
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, [onPrev, onNext]);
+
+  const ignored = (el: EventTarget | null) => {
+    for (let n = el as HTMLElement | null; n; n = n.parentElement) {
+      if (n.matches(".chart-box, input, select, textarea, button, .route-map")) return true;
+      if (n.scrollWidth > n.clientWidth && getComputedStyle(n).overflowX !== "visible" && getComputedStyle(n).overflowX !== "hidden") return true;
+    }
+    return false;
+  };
+  return {
+    onTouchStart: (e: TouchEvent) => {
+      const p = e.touches[0];
+      start.current = e.touches.length === 1 && !ignored(e.target) ? { x: p.clientX, y: p.clientY, t: e.timeStamp } : null;
+    },
+    onTouchEnd: (e: TouchEvent) => {
+      const s = start.current;
+      start.current = null;
+      if (!s) return;
+      const p = e.changedTouches[0];
+      const dx = p.clientX - s.x;
+      const dy = p.clientY - s.y;
+      // A clear sideways flick: far enough, mostly horizontal, not a slow drag.
+      if (Math.abs(dx) < 70 || Math.abs(dx) < 2 * Math.abs(dy) || e.timeStamp - s.t > 700) return;
+      (dx < 0 ? onNext : onPrev)?.();
+    },
+  };
+}
 /** Hours as h:mm, so 7.83 reads as "7:50". */
 const fmtHm = (h: number) => {
   const min = Math.round(Math.abs(h) * 60);
@@ -384,6 +433,10 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   const date = picked && /^\d{4}-\d{2}-\d{2}$/.test(picked) ? picked : today;
   const { data: d, error } = useApi<DayData>(`day?date=${date}`, [refreshKey]);
   const zoom = useMetricZoom(date);
+  const swipe = useDaySwipe(
+    d?.first && date <= d.first ? null : () => go(shift(date, -1)),
+    date >= today ? null : () => go(shift(date, 1)),
+  );
 
   const m = (k: string) => d?.metrics[k] ?? EMPTY;
   /** A derived series in the same shape as the server's metrics. */
@@ -404,7 +457,18 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   // Weigh-ins are sporadic: fall back to the latest one in the window.
   const w = m("weight");
   const lastW = w.trend.at(-1);
-  const weight = w.value === null && lastW ? { ...w, value: lastW.value, avg7: null } : w;
+  const weighIn = (k: string) => {
+    const x = m(k);
+    const last = x.trend.at(-1);
+    return x.value === null && last ? { ...x, value: last.value, avg7: null } : x;
+  };
+  /** Body composition can be older than the weight: weigh-ins without impedance carry none. */
+  const weighInNote = (k: string) => {
+    const x = m(k);
+    const last = x.trend.at(-1);
+    return x.value === null && last ? t("day.lastWeighIn", { date: fmtDayShort(last.date) }) : undefined;
+  };
+  const hasWeighIn = w.value !== null || !!lastW;
 
   const loadOption = useCallback(
     (tk: Tokens) => ({
@@ -447,7 +511,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
     <DayCtx.Provider value={date}>
     <ZoomCtx.Provider value={zoom.open}>
       {zoom.dialog}
-      <div className="grid">
+      <div className="grid" {...swipe}>
         <div className="card daynav">
           <button className="btn" onClick={() => go(shift(date, -1))} aria-label={t("day.prev")} disabled={!!d?.first && date <= d.first}>
             ‹
@@ -589,18 +653,22 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
                 <Stat icon="bbLow" label={metric("bb_low")} m={m("bb_low")} src="bb_low" better="up" />
                 <Stat icon="bodyBattery" label={metric("bb_charged")} m={m("bb_charged")} src="bb_charged" better="up" help="help.bb_flow" />
                 <Stat icon="bbDrained" label={metric("bb_drained")} m={m("bb_drained")} src="bb_drained" />
-                <Stat
-                  icon="weight"
-                  label={metric("weight")}
-                  m={weight}
-                  src="weight"
-                  unit="kg"
-                  digits={1}
-                  help="help.weight"
-                  note={w.value === null && lastW ? t("day.lastWeighIn", { date: fmtDayShort(lastW.date) }) : undefined}
-                />
               </div>
             </div>
+
+            {hasWeighIn && (
+              <div className="card span-6">
+                <CardTitle icon="weight" title={t("day.body")} sub={t("day.bodySub")} help="help.body" />
+                <div className="stats">
+                  <Stat icon="weight" label={metric("weight")} m={weighIn("weight")} src="weight" unit="kg" digits={1} help="help.weight" note={weighInNote("weight")} />
+                  <Stat icon="bmi" label={metric("bmi")} m={weighIn("bmi")} src="bmi" digits={1} help="help.bmi" note={weighInNote("bmi")} />
+                  <Stat icon="bodyFat" label={metric("body_fat")} m={weighIn("body_fat")} src="body_fat" unit="%" digits={1} better="down" help="help.body_fat" note={weighInNote("body_fat")} />
+                  <Stat icon="bodyWater" label={metric("body_water")} m={weighIn("body_water")} src="body_water" unit="%" digits={1} help="help.body_water" note={weighInNote("body_water")} />
+                  <Stat icon="muscle" label={metric("muscle_mass")} m={weighIn("muscle_mass")} src="muscle_mass" unit="kg" digits={1} better="up" help="help.muscle_mass" note={weighInNote("muscle_mass")} />
+                  <Stat icon="bone" label={metric("bone_mass")} m={weighIn("bone_mass")} src="bone_mass" unit="kg" digits={1} help="help.bone_mass" note={weighInNote("bone_mass")} />
+                </div>
+              </div>
+            )}
 
             <div className="card span-6">
               <CardTitle icon="steps" title={t("day.movement")} sub={t("day.movementSub")} />

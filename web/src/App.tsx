@@ -9,6 +9,7 @@ import { Day } from "./pages/Day";
 import { Insights } from "./pages/Insights";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
+import { Health } from "./pages/Health";
 import { Recovery } from "./pages/Recovery";
 import { Training } from "./pages/Training";
 import { clearPrefs, loadPrefs, prefGet, prefSet, startTab, TABS } from "./prefs";
@@ -146,6 +147,7 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
       {active === "overview" && <Overview {...props} />}
       {active === "day" && <Day {...props} date={rest[0] ?? null} />}
       {active === "recovery" && <Recovery {...props} />}
+      {active === "health" && <Health {...props} />}
       {active === "training" && <Training {...props} />}
       {active === "activities" && (
         <Activities {...props} selectedId={rest[0] ? Number(rest[0]) : null} compareId={rest[1] === "compare" && rest[2] ? Number(rest[2]) : null} />

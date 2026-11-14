@@ -150,6 +150,13 @@ export const CURATED: Record<string, { label: string; unit: string; candidates: 
   steps: { label: "Steps", unit: "", candidates: ["steps.totalSteps", "daily_summaries.movement.steps.value"] },
   // Last weigh-in of the day; dailyWeightSummaries[].latestWeight
   weight: { label: "Weight", unit: "kg", candidates: ["weight.latestWeight.weight"] },
+  // Body composition from the same weigh-in (Index scales). Garmin sends 0 when the weigh-in
+  // had no impedance reading (manual entry, socks), see BODY_COMPOSITION.
+  bmi: { label: "BMI", unit: "kg/m²", candidates: ["weight.latestWeight.bmi"], detail: true },
+  body_fat: { label: "Body fat", unit: "%", candidates: ["weight.latestWeight.bodyFat"], detail: true },
+  body_water: { label: "Body water", unit: "%", candidates: ["weight.latestWeight.bodyWater"], detail: true },
+  muscle_mass: { label: "Skeletal muscle mass", unit: "kg", candidates: ["weight.latestWeight.muscleMass"], detail: true },
+  bone_mass: { label: "Bone mass", unit: "kg", candidates: ["weight.latestWeight.boneMass"], detail: true },
 
   // Day dashboard details, confirmed Oct 2026. `detail` keeps them out of the correlation matrix.
   steps_goal: { label: "Step goal", unit: "", candidates: ["daily_summaries.movement.steps.goal", "steps.stepGoal"], detail: true },
@@ -192,7 +199,13 @@ const DIVISOR: Record<string, number> = {
   stress_low_hours: 3_600_000,
   stress_medium_hours: 3_600_000,
   stress_high_hours: 3_600_000,
+  // Grams from Connect.
+  muscle_mass: 1000,
+  bone_mass: 1000,
 };
+
+/** Read 0 on weigh-ins without an impedance reading; that is no value, not 0 %. */
+const BODY_COMPOSITION = new Set(["bmi", "body_fat", "body_water", "muscle_mass", "bone_mass"]);
 
 export function resolveCurated(uid: number, key: string): string | null {
   const def = CURATED[key];
@@ -210,6 +223,7 @@ export function metricSeries(uid: number, keyOrPath: string, from: string, to: s
   let rows = db
     .prepare("SELECT date, value FROM daily_metric WHERE user_id = ? AND metric = ? AND date BETWEEN ? AND ? ORDER BY date")
     .all(uid, path, from, to) as Series;
+  if (BODY_COMPOSITION.has(keyOrPath)) rows = rows.filter((r) => r.value > 0);
   const div = DIVISOR[keyOrPath];
   if (div) rows = rows.map((r) => ({ date: r.date, value: r.value / div }));
   // Weight is reported in grams by Connect.

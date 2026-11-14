@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.12.0 – Health page and swiping between days
+
+### Added
+
+- **Health page** for weight and body composition from your Garmin scale: weight, **BMI**,
+  **body fat** and **body water** (%), **muscle mass** and **bone mass** (kg) over the chosen
+  range. Weight moves here from Recovery.
+- **Day → Body** card with the same values from the day's weigh-in, or the latest one before it.
+  Weigh-ins without a body composition reading (by hand, with socks) show only the weight.
+- **Swipe between days** on phones: swipe left on the Day page for the next day, right for the
+  previous one. Charts keep their own touch handling. On desktop the **← and → keys** do the same.
+
 ## 0.11.0 – Your own rating, map layers and adaptive heart rate limits
 
 ### Added

@@ -8,6 +8,7 @@ const en = {
   "tab.overview": "Overview",
   "tab.day": "Day",
   "tab.recovery": "Recovery",
+  "tab.health": "Health",
   "tab.training": "Training",
   "tab.activities": "Activities",
   "tab.insights": "Insights",
@@ -67,6 +68,11 @@ const en = {
   "metric.bb_low": "Body Battery low",
   "metric.steps": "Steps",
   "metric.weight": "Weight",
+  "metric.bmi": "BMI",
+  "metric.body_fat": "Body fat",
+  "metric.body_water": "Body water",
+  "metric.muscle_mass": "Muscle mass",
+  "metric.bone_mass": "Bone mass",
   "metric.load.load": "Training load",
   "metric.load.tsb": "Form (TSB)",
   "metric.load.atl": "Fatigue (ATL)",
@@ -133,7 +139,9 @@ const en = {
   "day.hrRestDay": "Day {v}",
   "day.hrError": "Heart rate could not be loaded from Garmin.",
   "day.recovery": "Recovery",
-  "day.recoverySub": "HRV, Body Battery and weight",
+  "day.recoverySub": "HRV and Body Battery",
+  "day.body": "Body",
+  "day.bodySub": "Weight and body composition from your scale",
   "day.hrvRange": "Last night's HRV in your balanced range",
   "day.stress": "Stress",
   "day.stressSub": "Time per stress level while the watch was worn",
@@ -196,7 +204,11 @@ const en = {
   "recovery.score": "Sleep score",
   "recovery.stress": "Stress",
   "recovery.stressSub": "Daily average",
-  "recovery.weight": "Weight",
+  "health.weight": "Weight",
+  "health.empty": "No weigh-ins yet. Connect a Garmin scale or log your weight in Garmin Connect.",
+  "health.composition": "Body fat & water",
+  "health.mass": "Muscle & bone mass",
+  "health.bmi": "BMI",
 
   // Training
   "training.load": "Daily load & fitness",
@@ -535,6 +547,16 @@ const en = {
   "help.np":
     "Normalized Power: the steady power that would have cost the same physiologically as your variable power. Weights hard surges more than a plain average.",
   "help.weight": "Last weigh-in of each day. Days without a weigh-in stay empty.",
+  "help.body":
+    "Your scale estimates body composition by bioelectrical impedance: a weak current through the feet, which water-rich muscle conducts better than fat. Hydration, meals, training and time of day shift the reading, so weigh yourself at the same time, ideally in the morning before eating, and watch trends over weeks. Weigh-ins without bare feet or entered by hand carry only the weight.",
+  "help.bmi":
+    "Body mass index: weight divided by height squared (kg/m²). 18.5–24.9 counts as normal, 25–29.9 as overweight. It does not tell muscle from fat, so for muscular athletes body fat says more.",
+  "help.body_fat":
+    "Share of fat in body weight, estimated by the scale. Common healthy ranges are about 8–20 % for men and 21–33 % for women, rising slightly with age. Trends say more than the absolute value.",
+  "help.body_water":
+    "Share of water in body weight. Typically 50–65 % for men and 45–60 % for women. More muscle means more water; low values on single days usually mean you are dehydrated, which also raises the body fat reading.",
+  "help.muscle_mass": "Skeletal muscle mass in kg, estimated by the scale. Rising with stable weight means you are building muscle.",
+  "help.bone_mass": "Estimated mineral mass of the skeleton in kg. Changes very slowly; jumps are measurement noise.",
   "help.sleep_stages":
     "Deep: physical recovery. Light: the largest share, transition between stages. REM: mental recovery and memory. Awake: wake periods during the night; short ones are normal, frequent or long ones (e.g. after alcohol or late meals) cost recovery. The watch estimates stages from heart rate, HRV and movement, so trends say more than single nights. Garmin does not share when each stage happened, only the totals; the curve shows the overnight heart rate instead, where restless phases and waking stand out as peaks.",
   "help.hrv_chart":
@@ -564,6 +586,7 @@ const de: Record<Key, string> = {
   "tab.overview": "Übersicht",
   "tab.day": "Tag",
   "tab.recovery": "Erholung",
+  "tab.health": "Gesundheit",
   "tab.training": "Training",
   "tab.activities": "Aktivitäten",
   "tab.insights": "Zusammenhänge",
@@ -622,6 +645,11 @@ const de: Record<Key, string> = {
   "metric.bb_low": "Body Battery tief",
   "metric.steps": "Schritte",
   "metric.weight": "Gewicht",
+  "metric.bmi": "BMI",
+  "metric.body_fat": "Körperfett",
+  "metric.body_water": "Körperwasser",
+  "metric.muscle_mass": "Muskelmasse",
+  "metric.bone_mass": "Knochenmasse",
   "metric.load.load": "Trainingslast",
   "metric.load.tsb": "Form (TSB)",
   "metric.load.atl": "Ermüdung (ATL)",
@@ -686,7 +714,9 @@ const de: Record<Key, string> = {
   "day.hrRestDay": "Tag {v}",
   "day.hrError": "Puls konnte nicht von Garmin geladen werden.",
   "day.recovery": "Erholung",
-  "day.recoverySub": "HRV, Body Battery und Gewicht",
+  "day.recoverySub": "HRV und Body Battery",
+  "day.body": "Körper",
+  "day.bodySub": "Gewicht und Körperzusammensetzung von der Waage",
   "day.hrvRange": "HRV der letzten Nacht in deinem ausgeglichenen Bereich",
   "day.stress": "Stress",
   "day.stressSub": "Zeit je Stresslevel, während die Uhr getragen wurde",
@@ -748,7 +778,11 @@ const de: Record<Key, string> = {
   "recovery.score": "Schlafscore",
   "recovery.stress": "Stress",
   "recovery.stressSub": "Tagesdurchschnitt",
-  "recovery.weight": "Gewicht",
+  "health.weight": "Gewicht",
+  "health.empty": "Noch keine Wägungen. Verbinde eine Garmin-Waage oder trag dein Gewicht in Garmin Connect ein.",
+  "health.composition": "Körperfett & -wasser",
+  "health.mass": "Muskel- & Knochenmasse",
+  "health.bmi": "BMI",
 
   "training.load": "Tageslast & Fitness",
   "training.loadSub": "Garmins Trainingslast, falls vorhanden, sonst herzfrequenzbasiertes TRIMP",
@@ -1078,6 +1112,16 @@ const de: Record<Key, string> = {
   "help.np":
     "Normalized Power: die gleichmäßige Leistung, die physiologisch so anstrengend gewesen wäre wie deine schwankende Leistung. Gewichtet harte Spitzen stärker als der einfache Durchschnitt.",
   "help.weight": "Letzte Wägung des Tages. Tage ohne Wägung bleiben leer.",
+  "help.body":
+    "Die Waage schätzt die Körperzusammensetzung per Bioimpedanz: ein schwacher Strom durch die Füße, den wasserreiche Muskeln besser leiten als Fett. Trinken, Essen, Training und Tageszeit verschieben den Wert, also immer zur gleichen Zeit wiegen, am besten morgens nüchtern, und Trends über Wochen betrachten. Wägungen ohne nackte Füße oder von Hand eingetragen haben nur das Gewicht.",
+  "help.bmi":
+    "Body-Mass-Index: Gewicht geteilt durch Größe zum Quadrat (kg/m²). 18,5–24,9 gilt als normal, 25–29,9 als Übergewicht. Er unterscheidet nicht zwischen Muskeln und Fett; bei muskulösen Sportlern sagt der Körperfettanteil mehr.",
+  "help.body_fat":
+    "Anteil von Fett am Körpergewicht, von der Waage geschätzt. Übliche gesunde Bereiche liegen bei etwa 8–20 % für Männer und 21–33 % für Frauen, mit dem Alter leicht steigend. Der Verlauf sagt mehr als der absolute Wert.",
+  "help.body_water":
+    "Anteil von Wasser am Körpergewicht. Typisch 50–65 % bei Männern und 45–60 % bei Frauen. Mehr Muskeln heißt mehr Wasser; niedrige Werte an einzelnen Tagen bedeuten meist zu wenig getrunken, was auch den Körperfettwert erhöht.",
+  "help.muscle_mass": "Skelettmuskelmasse in kg, von der Waage geschätzt. Steigt sie bei gleichem Gewicht, baust du Muskeln auf.",
+  "help.bone_mass": "Geschätzte Mineralmasse des Skeletts in kg. Ändert sich sehr langsam; Sprünge sind Messrauschen.",
   "help.sleep_stages":
     "Tief: körperliche Erholung. Leicht: der größte Anteil, Übergang zwischen den Phasen. REM: geistige Erholung und Gedächtnis. Wach: Wachphasen in der Nacht; kurze sind normal, häufige oder lange (z. B. nach Alkohol oder spätem Essen) kosten Erholung. Die Uhr schätzt die Phasen aus Herzfrequenz, HRV und Bewegung, daher sagen Trends mehr als einzelne Nächte. Wann welche Phase war, gibt Garmin nicht heraus, nur die Summen; die Kurve zeigt stattdessen den Nachtpuls, in dem unruhige Phasen und Aufwachen als Spitzen auffallen.",
   "help.hrv_chart":
