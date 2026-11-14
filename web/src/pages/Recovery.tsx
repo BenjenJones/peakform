@@ -7,7 +7,7 @@ import { CardTitle } from "../ui";
 
 const KEYS = [
   "hrv_night", "hrv_base_low", "hrv_base_high", "rhr_night", "rhr_day", "sleep_hours", "deep_sleep_hours",
-  "rem_sleep_hours", "light_sleep_hours", "awake_hours", "sleep_score", "stress_avg", "bb_high", "bb_low", "weight",
+  "rem_sleep_hours", "light_sleep_hours", "awake_hours", "sleep_score", "stress_avg", "bb_high", "bb_low",
 ];
 
 const pts = (s: SeriesMap | null, k: string) => (s?.[k] ?? []).map((p) => [p.date, p.value] as [string, number]);
@@ -86,7 +86,6 @@ export function Recovery({ range, refreshKey }: PageProps) {
   );
   const score = useCallback(simple("sleep_score", tr("metric.sleep_score"), "s1"), [s, lang]);
   const stress = useCallback(simple("stress_avg", tr("metric.stress_avg"), "s2"), [s, lang]);
-  const weight = useCallback(simple("weight", tr("metric.weight"), "s1"), [s, lang]);
   const bb = useCallback(
     (t: Tokens) => timeChart(t, [line(tr("recovery.high"), pts(s, "bb_high"), t.s1), line(tr("recovery.low"), pts(s, "bb_low"), t.s2)]),
     [s, lang],
@@ -117,10 +116,6 @@ export function Recovery({ range, refreshKey }: PageProps) {
       <div className="card span-6">
         <CardTitle icon="stress" title={tr("recovery.stress")} sub={tr("recovery.stressSub")} help="help.stress" />
         <Chart option={stress} expand={tr("recovery.stress")} icon="stress" height={200} group="recovery" />
-      </div>
-      <div className="card span-6">
-        <CardTitle icon="weight" title={tr("recovery.weight")} sub="kg" help="help.weight" />
-        <Chart option={weight} expand={tr("recovery.weight")} icon="weight" height={200} group="recovery" />
       </div>
     </div>
   );

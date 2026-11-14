@@ -39,7 +39,7 @@ export const clearPrefs = () => {
   account = null;
 };
 
-export const TABS = ["overview", "day", "recovery", "training", "activities", "insights", "data", "account"] as const;
+export const TABS = ["overview", "day", "recovery", "health", "training", "activities", "insights", "data", "account"] as const;
 export type Tab = (typeof TABS)[number];
 
 export const prefGet = (k: (typeof KEYS)[number]) => account?.[k] ?? localGet(k);
