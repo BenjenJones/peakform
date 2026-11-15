@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.1 – Consistent backups
+
+### Fixed
+
+- **Home Assistant backups** now stop PeakForm for the few seconds the backup takes. Before, a
+  backup during a sync could copy a half-written database. PeakForm starts again on its own.
+
 ## 0.12.0 – Health page and swiping between days
 
 ### Added
