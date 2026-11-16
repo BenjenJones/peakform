@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.1 – Correct splits in Compare
+
+### Fixed
+
+- **Compare → Splits** showed wrong kilometre times, often a minute or more off the watch's laps.
+  Each split was effectively the pace at the very end of the kilometre instead of the time for the
+  whole kilometre. Now they match the watch's auto laps.
+- **Moving time** in Compare (splits, chart time axis, totals) was too short on runs with patchy
+  GPS: a second where the distance stalled counted as standing still. It now follows the watch's
+  speed. Stops at traffic lights still don't count, so a split can be shorter than the watch's lap
+  when auto-pause is off.
+
 ## 0.13.0 – Compact day view and reference weights
 
 ### Added
