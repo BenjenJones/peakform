@@ -8,6 +8,8 @@ import type { Streams } from "./garmin/fit.js";
 
 /** Slower than this between two records counts as standing (traffic light, auto-pause gap). */
 const MOVING_MPS = 0.5;
+/** Up to this record gap the watch's speed decides moving; longer gaps are pauses or sparse recording. */
+const MAX_SPEED_GAP_S = 10;
 const MAX_POINTS = 2000;
 /** Rolling window for pace/power, which are too noisy per bin. */
 const SMOOTH_M = 100;
@@ -117,7 +119,12 @@ function track(s: Streams): Track {
     const next = Math.max(d, s.dist[i] ?? d);
     if (i > 0) {
       const dt = s.t[i] - s.t[i - 1];
-      if (dt > 0 && (next - d) / dt >= MOVING_MPS) m += dt;
+      // GPS distance often stalls for a second and catches up in the next one, so per-second
+      // distance alone would drop running seconds. The watch's speed says whether you were moving;
+      // over longer record gaps (auto-pause) the distance covered decides.
+      const spd = s.speed[i];
+      const moved = dt <= MAX_SPEED_GAP_S && spd !== null ? spd >= MOVING_MPS : (next - d) / dt >= MOVING_MPS;
+      if (dt > 0 && moved) m += dt;
     }
     d = next;
     dist.push(d);
@@ -206,10 +213,12 @@ function splits(s: Streams, tr: Track): Split[] {
       if (tr.dist[i] > from && h) hrs.push(h);
       i++;
     }
+    // `at` only moves forward: read the start before the end.
+    const start = at(from);
     out.push({
       km,
       lengthM: to - from,
-      timeS: Math.round(at(to) - at(from)),
+      timeS: Math.round(at(to) - start),
       avgHr: hrs.length ? Math.round(hrs.reduce((a, b) => a + b, 0) / hrs.length) : null,
     });
   }
