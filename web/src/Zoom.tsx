@@ -18,6 +18,36 @@ export interface MetricSpec {
   bar?: boolean;
   /** Resting, lowest or highest heart rate: drawn together, the tapped one emphasized. */
   hrGroup?: boolean;
+  /** Horizontal reference lines, e.g. normal and ideal weight. */
+  refs?: RefLine[];
+}
+
+export interface RefLine {
+  label: string;
+  value: number;
+  tone: "normal" | "ideal";
+}
+
+/** Dashed, labeled reference lines plus y-axis bounds that keep them in view. */
+export function refLines(tk: Tokens, refs: RefLine[], fmt: (v: number) => string) {
+  if (!refs.length) return { markLine: undefined, min: undefined, max: undefined };
+  const vs = refs.map((r) => r.value);
+  return {
+    markLine: {
+      silent: true,
+      symbol: "none",
+      data: refs.map((r) => {
+        const color = r.tone === "ideal" ? tk.good : tk.s4;
+        return {
+          yAxis: r.value,
+          lineStyle: { color, type: "dashed" as const, width: 1.25 },
+          label: { formatter: `${r.label} ${fmt(r.value)}`, position: "insideEndTop", color, fontSize: 11 },
+        };
+      }),
+    },
+    min: (v: { min: number }) => Math.floor(Math.min(v.min, ...vs) - 1),
+    max: (v: { max: number }) => Math.ceil(Math.max(v.max, ...vs) + 1),
+  };
 }
 
 const RANGES = [7, 30, 90, 365, 730];
@@ -136,11 +166,13 @@ export function MetricDialog({ spec, date, onClose }: { spec: MetricSpec; date: 
       }
 
       const values = pts.map((p) => [ms(p.date), p.value]);
+      const ref = refLines(tk, spec.refs ?? [], spec.fmt);
       const main = spec.bar
         ? { type: "bar" as const, name: spec.title, data: values, barMaxWidth: 14, itemStyle: { color: tk.s1 } }
-        : line(spec.title, values, tk.s1, { showSymbol: pts.length <= 60, symbolSize: 6 });
+        : line(spec.title, values, tk.s1, { showSymbol: pts.length <= 60, symbolSize: 6, markLine: ref.markLine });
       return {
         ...common,
+        yAxis: ref.markLine ? { ...common.yAxis, min: ref.min, max: ref.max } : common.yAxis,
         legend: { ...(b.legend as object), data: [spec.title, t("zoom.avg7")] },
         tooltip: { ...(b.tooltip as object), valueFormatter: (v: number) => (typeof v === "number" ? spec.fmt(v) : "–") },
         series: [{ ...main, markPoint }, avg7],

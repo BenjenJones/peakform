@@ -4,7 +4,7 @@ import { send } from "./api";
 // keeps a copy for the login screen, before the account is known. Storage can be blocked
 // (private mode), so every access is guarded.
 
-const KEYS = ["startTab", "range", "lang"] as const;
+const KEYS = ["startTab", "range", "lang", "dayView"] as const;
 
 /** Server copy while signed in; null on the login screen, where nothing can be saved. */
 let account: Record<string, string> | null = null;

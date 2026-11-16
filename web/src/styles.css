@@ -227,6 +227,18 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.4; }
 .range .mark { position: absolute; top: -4px; width: 4px; height: 18px; border-radius: 2px; transform: translateX(-50%); }
 .range .ticks { position: relative; height: 16px; font-size: 11px; color: var(--muted); }
 .range .ticks span { position: absolute; top: 2px; transform: translateX(-50%); }
+.range .ref { position: absolute; top: -2px; width: 2px; height: 14px; transform: translateX(-50%); }
+.range .ticks span { white-space: nowrap; }
+
+/* Day page, compact view: tiles only, smaller, without sparklines. */
+.compact .card { padding: 12px 14px; }
+.compact .card > h2 { margin-bottom: 0; }
+.compact .stats { margin-top: 8px; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+.compact .stat { padding: 6px 8px 5px; }
+.compact .stat .value { font-size: 17px; }
+.compact .spark { display: none; }
+.compact .hero .score { font-size: 40px; }
+.dialog-body { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
 
 /* isolate: Leaflet panes use z-index 400–1000, which would otherwise cover popovers and chart tooltips. */
 .route-map { height: 380px; border-radius: 8px; overflow: hidden; background: var(--page); isolation: isolate; }
