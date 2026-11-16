@@ -99,10 +99,18 @@ export interface Review {
 export type ReviewModel = "opus" | "sonnet" | "haiku";
 
 export interface ReviewSettings {
-  profile: { sex: "male" | "female" | null; birthDate: string | null; goals: string; model: ReviewModel };
+  profile: { sex: "male" | "female" | null; birthDate: string | null; heightCm: number | null; goals: string; model: ReviewModel };
   apiKey: { updatedAt: string } | null;
   models: ReviewModel[];
   maxGoals: number;
+}
+
+/** Broca reference weights from height and sex in Account → About you. */
+export interface BodyRef {
+  sex: "male" | "female" | null;
+  heightCm: number | null;
+  normal: number | null;
+  ideal: number | null;
 }
 
 export interface ReviewNotice { code: "quota" | "auth"; message: string; at: string; activityId: number }

@@ -25,6 +25,7 @@ import {
   withStepCadence,
 } from "./analytics.js";
 import { type AppEnv, authRoutes, requireUser, sameOrigin } from "./auth.js";
+import { bodyRef } from "./body.js";
 import { unpackJson } from "./codec.js";
 import { compareActivities, compareCandidates } from "./compare.js";
 import { config } from "./config.js";
@@ -107,8 +108,8 @@ api.get("/me", (c) => {
   });
 });
 
-/** View settings (start page, date range, language), so they follow the account across browsers. */
-const PREF_KEYS = new Set(["startTab", "range", "lang"]);
+/** View settings (start page, date range, language, day view), so they follow the account across browsers. */
+const PREF_KEYS = new Set(["startTab", "range", "lang", "dayView"]);
 
 api.put("/me/prefs", async (c) => {
   const uid = c.get("user").id;
@@ -202,10 +203,14 @@ api.put("/me/review-settings", async (c) => {
   if (birthDate && (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate) || birthDate < "1900-01-01" || birthDate > today())) {
     return c.json({ error: "Invalid birth date", code: "birth_date" }, 400);
   }
+  const heightCm = b.heightCm === null || b.heightCm === "" || b.heightCm === undefined ? null : Number(b.heightCm);
+  if (heightCm !== null && (!Number.isFinite(heightCm) || heightCm < 100 || heightCm > 250)) {
+    return c.json({ error: "Height must be between 100 and 250 cm", code: "height" }, 400);
+  }
   const goals = typeof b.goals === "string" ? b.goals : "";
   if (goals.length > MAX_GOALS) return c.json({ error: `At most ${MAX_GOALS} characters`, code: "goals_too_long" }, 400);
   const model = REVIEW_MODELS.find((m) => m === b.model) ?? "opus";
-  setReviewProfile(c.get("user").id, { sex, birthDate, goals, model });
+  setReviewProfile(c.get("user").id, { sex, birthDate, heightCm: heightCm === null ? null : Math.round(heightCm), goals, model });
   return c.json({ ok: true });
 });
 
@@ -322,6 +327,8 @@ api.get("/day", (c) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: "date must be YYYY-MM-DD" }, 400);
   return c.json(daySummary(c.get("user").id, date));
 });
+
+api.get("/body-ref", (c) => c.json(bodyRef(c.get("user").id)));
 
 api.get("/night", async (c) => {
   const date = c.req.query("date") ?? today();

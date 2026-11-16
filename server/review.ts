@@ -35,6 +35,8 @@ export interface ReviewRow {
 export interface ReviewProfile {
   sex: "male" | "female" | null;
   birthDate: string | null;
+  /** Body height in cm, for normal and ideal weight. */
+  heightCm: number | null;
   /** Free text added to the system prompt: goals, injuries, context. */
   goals: string;
   model: ReviewModel;
@@ -63,7 +65,7 @@ const addDays = (day: string, n: number) => {
 export function reviewProfile(uid: number): ReviewProfile {
   const p = kvGet<Partial<ReviewProfile>>(uid, "reviewProfile") ?? {};
   const model = REVIEW_MODELS.find((m) => m === p.model) ?? "opus";
-  return { sex: p.sex ?? null, birthDate: p.birthDate ?? null, goals: p.goals ?? "", model };
+  return { sex: p.sex ?? null, birthDate: p.birthDate ?? null, heightCm: p.heightCm ?? null, goals: p.goals ?? "", model };
 }
 
 export const setReviewProfile = (uid: number, p: ReviewProfile) => kvSet(uid, "reviewProfile", p);
@@ -307,6 +309,7 @@ export function buildInput(uid: number, id: number) {
   const athlete = {
     sex: profile.sex ?? "unknown",
     age: ageOn(profile.birthDate, day) ?? "unknown",
+    heightCm: profile.heightCm ?? "unknown",
     weightKg: round(valueOn(uid, "weight", day, 60), 1),
     heartRateZones: Array.isArray(zones)
       ? zones.map((z) => ({ sport: z.sport, method: z.trainingMethod, restingHr: z.restingHeartRateUsed, lactateThresholdHr: z.lactateThresholdHeartRateUsed, maxHr: z.maxHeartRateUsed, zoneFloors: [z.zone1Floor, z.zone2Floor, z.zone3Floor, z.zone4Floor, z.zone5Floor] }))

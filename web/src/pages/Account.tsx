@@ -85,7 +85,7 @@ function GarminKey({ me, onChange }: { me: Me; onChange: () => void }) {
   );
 }
 
-/** Anthropic API key, the athlete data Garmin does not share (sex, birth date) and the extra prompt. */
+/** Anthropic API key, the athlete data Garmin does not share (sex, birth date, height) and the extra prompt. */
 function ReviewSetup() {
   const { t } = useI18n();
   const [reload, setReload] = useState(0);
@@ -94,6 +94,7 @@ function ReviewSetup() {
   const [busy, setBusy] = useState(false);
   const [sex, setSex] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [height, setHeight] = useState("");
   const [goals, setGoals] = useState("");
   const [model, setModel] = useState<ReviewModel>("opus");
   const [tokenMsg, setTokenMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -102,6 +103,7 @@ function ReviewSetup() {
     if (!data) return;
     setSex(data.profile.sex ?? "");
     setBirthDate(data.profile.birthDate ?? "");
+    setHeight(data.profile.heightCm ? String(data.profile.heightCm) : "");
     setGoals(data.profile.goals);
     setModel(data.profile.model);
   }, [data]);
@@ -131,7 +133,7 @@ function ReviewSetup() {
     e.preventDefault();
     setMsg(null);
     try {
-      await send("me/review-settings", "PUT", { sex: sex || null, birthDate: birthDate || null, goals, model });
+      await send("me/review-settings", "PUT", { sex: sex || null, birthDate: birthDate || null, heightCm: height ? Number(height) : null, goals, model });
       setMsg({ ok: true, text: t("review.profileSaved") });
     } catch (err) {
       setMsg({ ok: false, text: errorText(t, err) });
@@ -190,6 +192,20 @@ function ReviewSetup() {
             <label className="controls">
               {t("review.birthDate")}
               <input className="input" style={{ width: "auto", margin: 0 }} type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+            </label>
+            <label className="controls">
+              {t("review.height")}
+              <input
+                className="input"
+                style={{ width: 84, margin: 0 }}
+                type="number"
+                inputMode="numeric"
+                min={100}
+                max={250}
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+              />
+              cm
             </label>
             <label className="controls">
               {t("review.model")}

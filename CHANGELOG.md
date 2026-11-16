@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.13.0 – Compact day view and reference weights
+
+### Added
+
+- **Compact day view**: switch between **Detailed** (as before) and **Compact** at the top of the Day
+  page. Compact shows only tiles, smaller and grouped, so the whole day fits on one screen. Tap a tile
+  for its chart; the heart rate over the day and the night (sleep stages and heart rate) have tiles
+  of their own. The choice is saved with your account.
+- **Normal and ideal weight** as dashed lines in the weight charts (Health page and the weight tile's
+  chart) and as a marker bar in Day → Body. Broca formula: normal weight = height in cm − 100, ideal
+  weight 10 % (men) or 15 % (women) below it.
+- **Account → About you → Height**, needed for the reference weights. Garmin's Personal API does not
+  share the height from your Garmin profile. Activity reviews also get the height.
+
 ## 0.12.1 – Consistent backups
 
 ### Fixed

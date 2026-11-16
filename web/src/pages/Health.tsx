@@ -1,9 +1,11 @@
 import { useCallback } from "react";
 import type { PageProps } from "../App";
-import { daysAgo, type SeriesMap, useApi } from "../api";
+import { type BodyRef, daysAgo, type SeriesMap, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
-import { dateAxisPointer, useI18n } from "../i18n";
-import { CardTitle } from "../ui";
+import { dateAxisPointer, fmtNum, useI18n } from "../i18n";
+import { CardTitle, Info } from "../ui";
+import { weightRefs, weightRefText } from "../weightRef";
+import { refLines } from "../Zoom";
 
 const KEYS = ["weight", "bmi", "body_fat", "body_water", "muscle_mass", "bone_mass"];
 
@@ -24,10 +26,19 @@ function timeChart(t: Tokens, series: object[], legend = true) {
 export function Health({ range, refreshKey }: PageProps) {
   const { t: tr, lang } = useI18n();
   const { data: s } = useApi<SeriesMap>(`series?keys=${KEYS.join(",")}&from=${daysAgo(range)}`, [range, refreshKey]);
+  const { data: ref } = useApi<BodyRef>("body-ref", [refreshKey]);
+  const refText = weightRefText(ref, tr);
   const has = (k: string) => (s?.[k]?.length ?? 0) > 0;
 
   /* eslint-disable react-hooks/exhaustive-deps */
-  const weight = useCallback((t: Tokens) => timeChart(t, [line(tr("metric.weight"), pts(s, "weight"), t.s1)], false), [s, lang]);
+  const weight = useCallback(
+    (t: Tokens) => {
+      const rl = refLines(t, weightRefs(ref, tr), (v) => fmtNum(v, 1));
+      const o = timeChart(t, [line(tr("metric.weight"), pts(s, "weight"), t.s1, { markLine: rl.markLine })], false);
+      return rl.markLine ? { ...o, yAxis: { ...o.yAxis, min: rl.min, max: rl.max } } : o;
+    },
+    [s, ref, lang],
+  );
   const bmi = useCallback((t: Tokens) => timeChart(t, [line(tr("metric.bmi"), pts(s, "bmi"), t.s3)], false), [s, lang]);
   const composition = useCallback(
     (t: Tokens) => timeChart(t, [line(tr("metric.body_fat"), pts(s, "body_fat"), t.s2), line(tr("metric.body_water"), pts(s, "body_water"), t.s1)]),
@@ -45,6 +56,12 @@ export function Health({ range, refreshKey }: PageProps) {
     <div className="grid">
       <div className="card span-6">
         <CardTitle icon="weight" title={tr("health.weight")} sub="kg" help="help.weight" />
+        {refText && (
+          <p className="sub">
+            {refText}
+            <Info help="help.weight_ref" />
+          </p>
+        )}
         <Chart option={weight} expand={tr("health.weight")} icon="weight" height={220} group="health" />
       </div>
       {has("bmi") && (
