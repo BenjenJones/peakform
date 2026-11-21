@@ -33,6 +33,10 @@ export interface Me {
   displayName: string | null;
   mode: "homeassistant" | "local";
   garminKey: { updated_at: string; last_error: string | null } | null;
+  /** Standalone only: where password reset links go. */
+  email: string | null;
+  /** Whether the server can send reset links by mail. */
+  passwordReset: boolean;
   prefs: Record<string, string>;
 }
 

@@ -28,7 +28,7 @@ import { type AppEnv, authRoutes, requireUser, sameOrigin } from "./auth.js";
 import { bodyRef } from "./body.js";
 import { unpackJson } from "./codec.js";
 import { compareActivities, compareCandidates } from "./compare.js";
-import { config } from "./config.js";
+import { config, mailEnabled } from "./config.js";
 import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
 import { feelingMap, getFeedback, parseFeedback, setFeedback } from "./feedback.js";
@@ -56,10 +56,12 @@ import {
 } from "./review.js";
 import { enqueueSync, syncAll, syncState } from "./sync.js";
 import {
+  changeEmail,
   changePassword,
   credentialInfo,
   deleteApiKey,
   deleteUser,
+  getEmail,
   purgeExpiredSessions,
   reencryptCredentials,
   storeApiKey,
@@ -104,6 +106,8 @@ api.get("/me", (c) => {
     displayName: u.display_name,
     mode: config.isHaApp ? "homeassistant" : "local",
     garminKey: credentialInfo(u.id), // never the key itself
+    email: config.isHaApp ? null : getEmail(u.id),
+    passwordReset: mailEnabled(),
     prefs: kvGet<Record<string, string>>(u.id, "prefs") ?? {},
   });
 });
@@ -156,6 +160,17 @@ api.post("/me/password", async (c) => {
   try {
     await changePassword(c.get("user").id, String(current ?? ""), String(next ?? ""));
     return c.json({ ok: true, loggedOut: true });
+  } catch (e) {
+    return c.json({ error: (e as Error).message, code: e instanceof UserError ? e.code : undefined }, 400);
+  }
+});
+
+api.put("/me/email", async (c) => {
+  if (config.isHaApp) return c.json({ error: "Managed by Home Assistant" }, 400);
+  const { current, email } = await c.req.json<{ current?: string; email?: string }>();
+  try {
+    await changeEmail(c.get("user").id, String(current ?? ""), String(email ?? ""));
+    return c.json({ ok: true });
   } catch (e) {
     return c.json({ error: (e as Error).message, code: e instanceof UserError ? e.code : undefined }, 400);
   }

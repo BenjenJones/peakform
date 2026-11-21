@@ -2,8 +2,21 @@ import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Context, MiddlewareHandler } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { Hono } from "hono";
-import { config } from "./config.js";
-import { authenticate, createSession, destroySession, register, sessionUser, upsertHaUser, type User, UserError } from "./users.js";
+import { config, mailEnabled } from "./config.js";
+import { sendResetMail } from "./mail.js";
+import {
+  authenticate,
+  createResetToken,
+  createSession,
+  destroySession,
+  register,
+  RESET_MINUTES,
+  resetPassword,
+  sessionUser,
+  upsertHaUser,
+  type User,
+  UserError,
+} from "./users.js";
 
 export type AppEnv = { Variables: { user: User } };
 
@@ -74,7 +87,11 @@ export const sameOrigin: MiddlewareHandler = async (c, next) => {
 export const authRoutes = new Hono();
 
 authRoutes.get("/config", (c) =>
-  c.json({ mode: config.isHaApp ? "homeassistant" : "local", registration: !config.isHaApp && config.allowRegistration }),
+  c.json({
+    mode: config.isHaApp ? "homeassistant" : "local",
+    registration: !config.isHaApp && config.allowRegistration,
+    passwordReset: mailEnabled(),
+  }),
 );
 
 function startSession(c: Context, user: User) {
@@ -92,9 +109,9 @@ authRoutes.post("/register", async (c) => {
   if (config.isHaApp || !config.allowRegistration) return c.json({ error: "Registration is disabled", code: "registration_disabled" }, 403);
   const ip = clientIp(c);
   if (throttled(ip)) return c.json({ error: "Too many attempts, try again later", code: "too_many_attempts" }, 429);
-  const { username, password } = await c.req.json<{ username?: string; password?: string }>();
+  const { username, password, email } = await c.req.json<{ username?: string; password?: string; email?: string }>();
   try {
-    return startSession(c, await register(String(username ?? ""), String(password ?? "")));
+    return startSession(c, await register(String(username ?? ""), String(password ?? ""), String(email ?? "")));
   } catch (e) {
     recordFail(ip);
     return c.json({ error: (e as Error).message, code: e instanceof UserError ? e.code : undefined }, 400);
@@ -112,6 +129,50 @@ authRoutes.post("/login", async (c) => {
     return c.json({ error: "Wrong username or password", code: "wrong_credentials" }, 401);
   }
   return startSession(c, user);
+});
+
+// ---------- Password reset by mail ----------
+
+/** Reset requests per IP: few, they send mail. */
+const MAX_FORGOT = 5;
+const forgot = new Map<string, { n: number; resetAt: number }>();
+
+/**
+ * Always answers the same, whether the account exists, has an e-mail or was just sent a link, so
+ * the form cannot be used to find out who has an account. The mail goes out in the background:
+ * waiting for the mail server would make the answer slower for real accounts.
+ */
+authRoutes.post("/forgot", async (c) => {
+  if (!mailEnabled()) return c.json({ error: "Password reset by mail is not set up", code: "reset_disabled" }, 404);
+  const ip = clientIp(c);
+  const f = forgot.get(ip);
+  if (f && f.resetAt < Date.now()) forgot.delete(ip);
+  const entry = forgot.get(ip) ?? { n: 0, resetAt: Date.now() + WINDOW_MS };
+  if (entry.n >= MAX_FORGOT) return c.json({ error: "Too many attempts, try again later", code: "too_many_attempts" }, 429);
+  entry.n++;
+  forgot.set(ip, entry);
+
+  const { identifier, lang } = await c.req.json<{ identifier?: string; lang?: string }>();
+  const reset = createResetToken(String(identifier ?? "").slice(0, 254));
+  if (reset) {
+    sendResetMail(reset.email, reset.username, reset.token, String(lang ?? ""), RESET_MINUTES).catch((e) =>
+      console.error(`Password reset mail for ${reset.username} failed: ${(e as Error).message}`),
+    );
+  }
+  return c.json({ ok: true });
+});
+
+authRoutes.post("/reset", async (c) => {
+  if (config.isHaApp) return c.json({ error: "Signed in via Home Assistant" }, 400);
+  const ip = clientIp(c);
+  if (throttled(ip)) return c.json({ error: "Too many attempts, try again later", code: "too_many_attempts" }, 429);
+  const { token, password } = await c.req.json<{ token?: string; password?: string }>();
+  try {
+    return startSession(c, await resetPassword(String(token ?? ""), String(password ?? "")));
+  } catch (e) {
+    if (e instanceof UserError && e.code === "reset_invalid") recordFail(ip);
+    return c.json({ error: (e as Error).message, code: e instanceof UserError ? e.code : undefined }, 400);
+  }
 });
 
 authRoutes.post("/logout", (c) => {

@@ -77,6 +77,31 @@ docker compose up -d --build   # http://localhost:8099
 Put it behind a TLS reverse proxy before exposing it, and set `TRUST_PROXY=true` so session
 cookies get the `Secure` flag. Set `ALLOW_REGISTRATION=false` once everyone has an account.
 
+### Forgotten passwords
+
+With outgoing mail set up in `.env`, the sign-in page offers **Forgot your password?** and sends a
+reset link to the e-mail address saved under **Account → E-mail** (optional, also asked when
+creating an account):
+
+```sh
+PUBLIC_URL=https://peakform.example.org   # links are built from this, never from the Host header
+SMTP_HOST=smtp.example.org
+SMTP_PORT=587                              # 465 with SMTP_SECURE=true
+SMTP_USER=peakform@example.org
+SMTP_PASS=…
+SMTP_FROM="PeakForm <peakform@example.org>"
+# SMTP_REQUIRE_TLS=false                   # only for a relay on the same host or network
+```
+
+Without mail, or for an account without an e-mail address, set a new password on the server:
+
+```sh
+docker compose exec -it peakform node dist/server/reset-password.js <username>
+npm run reset-password -- <username>       # from a checkout
+```
+
+Both sign the account out everywhere; the Garmin key and all data stay.
+
 ## Security model
 
 | What | How |
@@ -84,6 +109,7 @@ cookies get the `Secure` flag. Set `ALLOW_REGISTRATION=false` once everyone has 
 | Login (standalone) | Username + password, Argon2id (19 MiB, t=2, p=1, PHC format) via built-in `node:crypto`. 10 failed attempts per IP per 15 min, then 429. Unknown users cost the same time as wrong passwords. |
 | Login (Home Assistant) | HA authenticates; the ingress proxy passes `X-Remote-User-*` headers. Only trusted because the server rejects every source except the Supervisor proxy (172.30.32.2). |
 | Sessions | 32 random bytes in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` over https); only the SHA-256 is stored. 30 days. Password change revokes all sessions. |
+| Password reset | Optional, needs SMTP and `PUBLIC_URL`. 32 random bytes in the link's fragment (never sent to a server or in a `Referer`), only the SHA-256 is stored; valid 60 min, single use, every link and session of the account ends with the reset. The form answers the same for unknown accounts, accounts without e-mail and repeat requests, and sends in the background so timing does not tell either. At most one mail per account per 5 min and 5 requests per IP per 15 min. Changing the e-mail takes the current password. |
 | CSRF | SameSite cookies + `Origin` check on state-changing requests. |
 | Garmin API keys | Verified with Garmin, then AES-256-GCM encrypted with a master key kept outside the DB (`MASTER_KEY` / `MASTER_KEY_FILE` / HA option). Random 96-bit IV per write; user id bound as AAD, so ciphertext copied to another row will not decrypt. Never returned by the API. |
 | Anthropic API keys | Verified with Anthropic (free model list call), then encrypted like the Garmin keys with their own AAD context. Never returned by the API; each user's reviews use only their own key. |

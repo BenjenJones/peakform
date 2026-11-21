@@ -1,6 +1,6 @@
 {
   "name": "peakform",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -14,6 +14,7 @@
     "build": "vite build && tsc -p server/tsconfig.json && node scripts/notices.mjs",
     "start": "node --env-file-if-exists=.env --disable-warning=ExperimentalWarning dist/server/index.js",
     "sync": "tsx --env-file-if-exists=.env server/cli.ts",
+    "reset-password": "tsx --env-file-if-exists=.env server/reset-password.ts",
     "changelog": "node -e \"require('node:fs').copyFileSync('CHANGELOG.md', 'peakform/CHANGELOG.md')\"",
     "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
   },
@@ -21,12 +22,14 @@
     "@anthropic-ai/sdk": "^1.8.0",
     "@hono/node-server": "^1.14.0",
     "fflate": "^0.8.2",
-    "hono": "^4.7.0"
+    "hono": "^4.7.0",
+    "nodemailer": "^10.6.1"
   },
   "devDependencies": {
     "@tabler/icons-react": "3.49.0",
     "@types/leaflet": "^1.9.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.4.0",

@@ -28,16 +28,19 @@ export function getUser(id: number): User | null {
 
 // ---------- Local accounts ----------
 
-export async function register(username: string, password: string): Promise<User> {
+export async function register(username: string, password: string, email = ""): Promise<User> {
   if (!USERNAME_RE.test(username)) throw new UserError("username_invalid", "Username: 3–32 characters, letters, digits, . _ -");
   if (username.toLowerCase().startsWith("ha.")) throw new UserError("username_reserved", 'Usernames starting with "ha." are reserved');
   if (password.length < MIN_PASSWORD) throw new UserError("password_too_short", `Password must be at least ${MIN_PASSWORD} characters`);
+  const mail = normalizeEmail(email);
   const hash = await hashPassword(password);
   try {
-    const r = db.prepare("INSERT INTO user(username, password_hash, created_at) VALUES(?, ?, ?)").run(username, hash, now());
+    const r = db.prepare("INSERT INTO user(username, password_hash, created_at, email) VALUES(?, ?, ?, ?)").run(username, hash, now(), mail);
     return getUser(Number(r.lastInsertRowid))!;
   } catch (e) {
-    if (String(e).includes("UNIQUE")) throw new UserError("username_taken", "Username is taken");
+    const msg = String(e);
+    if (msg.includes("UNIQUE") && msg.includes("email")) throw new UserError("email_taken", "This e-mail address belongs to another account");
+    if (msg.includes("UNIQUE")) throw new UserError("username_taken", "Username is taken");
     throw e;
   }
 }
@@ -55,8 +58,82 @@ export async function changePassword(userId: number, current: string, next: stri
   if (!row.password_hash || !(await verifyPassword(current, row.password_hash))) throw new UserError("wrong_current_password", "Current password is wrong");
   if (next.length < MIN_PASSWORD) throw new UserError("password_too_short", `Password must be at least ${MIN_PASSWORD} characters`);
   db.prepare("UPDATE user SET password_hash = ? WHERE id = ?").run(await hashPassword(next), userId);
-  // Log out every other session.
+  // Log out every other session; open reset links are no longer needed.
   db.prepare("DELETE FROM session WHERE user_id = ?").run(userId);
+  db.prepare("DELETE FROM password_reset WHERE user_id = ?").run(userId);
+}
+
+// ---------- E-mail and password reset ----------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** How long a reset link works. */
+export const RESET_MINUTES = 60;
+/** At most one reset mail per account in this time, so the form cannot flood someone's inbox. */
+const RESET_COOLDOWN_MS = 5 * 60_000;
+
+/** Validated e-mail or null for "none"; throws on a malformed one. */
+export function normalizeEmail(email: string): string | null {
+  const e = email.trim();
+  if (!e) return null;
+  if (e.length > 254 || !EMAIL_RE.test(e)) throw new UserError("email_invalid", "That does not look like an e-mail address");
+  return e;
+}
+
+export const getEmail = (userId: number) =>
+  (db.prepare("SELECT email FROM user WHERE id = ?").get(userId) as { email: string | null } | undefined)?.email ?? null;
+
+function storeEmail(userId: number, email: string | null) {
+  try {
+    db.prepare("UPDATE user SET email = ? WHERE id = ?").run(email, userId);
+  } catch (e) {
+    if (String(e).includes("UNIQUE")) throw new UserError("email_taken", "This e-mail address belongs to another account");
+    throw e;
+  }
+}
+
+/** Changing where reset links go takes the current password, or a stolen session could take over the account. */
+export async function changeEmail(userId: number, current: string, email: string) {
+  const row = db.prepare("SELECT password_hash FROM user WHERE id = ?").get(userId) as { password_hash: string | null };
+  if (!row.password_hash || !(await verifyPassword(current, row.password_hash))) throw new UserError("wrong_current_password", "Current password is wrong");
+  storeEmail(userId, normalizeEmail(email));
+}
+
+/**
+ * New reset token for the local account with this username or e-mail, or null when there is none,
+ * it has no e-mail, or a link went out moments ago. Callers must not reveal which.
+ */
+export function createResetToken(identifier: string): { token: string; email: string; username: string } | null {
+  const id = identifier.trim();
+  if (!id) return null;
+  const row = db
+    .prepare("SELECT id, username, email FROM user WHERE password_hash IS NOT NULL AND email IS NOT NULL AND (username = ? OR email = ? COLLATE NOCASE)")
+    .get(id, id) as { id: number; username: string; email: string } | undefined;
+  if (!row) return null;
+  const recent = db.prepare("SELECT max(created_at) AS at FROM password_reset WHERE user_id = ?").get(row.id) as { at: string | null };
+  if (recent.at && Date.now() - Date.parse(recent.at) < RESET_COOLDOWN_MS) return null;
+  db.prepare("DELETE FROM password_reset WHERE expires_at < ?").run(now());
+  const token = newToken();
+  const expires = new Date(Date.now() + RESET_MINUTES * 60_000).toISOString();
+  db.prepare("INSERT INTO password_reset(token_hash, user_id, created_at, expires_at) VALUES(?, ?, ?, ?)").run(sha256(token), row.id, now(), expires);
+  return { token, email: row.email, username: row.username };
+}
+
+/** Sets a new password from a reset link. Every session and every other link of the account ends. */
+export async function resetPassword(token: string, next: string): Promise<User> {
+  const row = db.prepare("SELECT user_id, expires_at FROM password_reset WHERE token_hash = ?").get(sha256(token)) as
+    | { user_id: number; expires_at: string }
+    | undefined;
+  if (!row || row.expires_at < now()) throw new UserError("reset_invalid", "This link is invalid or has expired");
+  if (next.length < MIN_PASSWORD) throw new UserError("password_too_short", `Password must be at least ${MIN_PASSWORD} characters`);
+  await setPassword(row.user_id, next);
+  return getUser(row.user_id)!;
+}
+
+/** New password without the old one (reset link, command line); signs out everywhere. */
+export async function setPassword(userId: number, next: string) {
+  db.prepare("UPDATE user SET password_hash = ? WHERE id = ?").run(await hashPassword(next), userId);
+  db.prepare("DELETE FROM session WHERE user_id = ?").run(userId);
+  db.prepare("DELETE FROM password_reset WHERE user_id = ?").run(userId);
 }
 
 export const deleteUser = (userId: number) => db.prepare("DELETE FROM user WHERE id = ?").run(userId);
