@@ -10,6 +10,7 @@ export function Account({ me, onChange }: { me: Me; onChange: () => void }) {
       <ReviewSetup />
       <Prefs />
       <HrLimits />
+      {me.mode === "local" && <Email me={me} onChange={onChange} />}
       {me.mode === "local" && <Password />}
       <Danger me={me} onChange={onChange} />
     </div>
@@ -365,6 +366,44 @@ function HrLimits() {
       {msg && <div className={msg.ok ? "success" : "error"}>{msg.text}</div>}
       <button className="btn primary" style={{ marginTop: 8 }}>
         {t("account.hrLimitsSave")}
+      </button>
+    </form>
+  );
+}
+
+/** Where password reset links go. Changing it takes the current password. */
+function Email({ me, onChange }: { me: Me; onChange: () => void }) {
+  const { t } = useI18n();
+  const [email, setEmail] = useState(me.email ?? "");
+  const [current, setCurrent] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await send("me/email", "PUT", { current, email });
+      setCurrent("");
+      setMsg({ ok: true, text: t(email.trim() ? "account.emailSaved" : "account.emailRemoved") });
+      onChange();
+    } catch (err) {
+      setMsg({ ok: false, text: errorText(t, err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="card span-6" onSubmit={save}>
+      <h2>{t("account.emailTitle")}</h2>
+      <p className="sub">{t(me.passwordReset ? "account.emailSub" : "account.emailNoMail")}</p>
+      <input className="input" type="email" autoComplete="email" placeholder={t("login.email")} value={email} onChange={(e) => setEmail(e.target.value)} />
+      <input className="input" type="password" autoComplete="current-password" placeholder={t("account.pwCurrent")} value={current} onChange={(e) => setCurrent(e.target.value)} required />
+      {msg && <div className={msg.ok ? "success" : "error"}>{msg.text}</div>}
+      <button className="btn primary" style={{ marginTop: 8 }} disabled={busy || email.trim() === (me.email ?? "")}>
+        {t("account.emailSave")}
       </button>
     </form>
   );

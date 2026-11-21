@@ -28,6 +28,26 @@ export const config = {
   /** Standalone only: honor X-Forwarded-For / X-Forwarded-Proto from a reverse proxy. */
   trustProxy: process.env.TRUST_PROXY === "true",
   sessionDays: 30,
+  /**
+   * Standalone only: address the app is reached at, e.g. https://peakform.example.org. Links in
+   * mails are built from it, never from the request's Host header (which an attacker controls).
+   */
+  publicUrl: (process.env.PUBLIC_URL ?? "").replace(/\/+$/, ""),
+  /** Standalone only: outgoing mail for password resets. */
+  smtp: {
+    host: process.env.SMTP_HOST ?? "",
+    port: Number(process.env.SMTP_PORT || 587),
+    /** true: TLS from the start (port 465); false: STARTTLS when the server offers it. */
+    secure: process.env.SMTP_SECURE === "true",
+    /** Refuse to send without encryption; only turn off for a relay on the same host or network. */
+    requireTls: process.env.SMTP_REQUIRE_TLS !== "false",
+    user: process.env.SMTP_USER ?? "",
+    pass: process.env.SMTP_PASS ?? "",
+    from: process.env.SMTP_FROM ?? "",
+  },
 };
+
+/** Password reset by mail needs a mail server and the public address for the link. */
+export const mailEnabled = () => !config.isHaApp && !!config.smtp.host && !!config.smtp.from && !!config.publicUrl;
 
 export const dbPath = () => join(config.dataDir, "garmin.sqlite");

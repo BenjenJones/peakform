@@ -24,7 +24,8 @@ db.exec(`
     display_name  TEXT,
     password_hash TEXT,          -- Argon2id PHC string; NULL for Home Assistant users
     ha_user_id    TEXT UNIQUE,   -- set for users identified via HA ingress headers
-    created_at    TEXT NOT NULL
+    created_at    TEXT NOT NULL,
+    email         TEXT           -- optional, standalone only: where password reset links go
   );
 
   CREATE TABLE IF NOT EXISTS session (
@@ -127,6 +128,22 @@ db.exec(`
     finished TEXT,
     status   TEXT NOT NULL,
     message  TEXT
+  );
+`);
+
+// Additive changes without a version bump: older builds still open the database (they only check
+// user_version) and ignore the new column and table, so going back a release keeps working.
+const userCols = (db.prepare("PRAGMA table_info(user)").all() as { name: string }[]).map((c) => c.name);
+if (!userCols.includes("email")) db.exec("ALTER TABLE user ADD COLUMN email TEXT");
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS user_email ON user(email COLLATE NOCASE) WHERE email IS NOT NULL;
+
+  -- Single-use password reset links, sent by mail. Only the sha256 of the token is stored.
+  CREATE TABLE IF NOT EXISTS password_reset (
+    token_hash TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
   );
 `);
 

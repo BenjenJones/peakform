@@ -65,7 +65,8 @@ function Root() {
   }, []);
 
   if (me === undefined) return null;
-  if (me === null) return <Login onDone={loadMe} />;
+  // A reset link from a mail opens the reset form even in a browser that is still signed in.
+  if (me === null || location.hash.startsWith("#/reset/")) return <Login onDone={loadMe} />;
   // Keyed by user so no state leaks between accounts.
   return <Dashboard key={me.id} me={me} reloadMe={loadMe} />;
 }

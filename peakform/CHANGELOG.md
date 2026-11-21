@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0 – Forgotten password
+
+### Added
+
+- **Forgot your password?** on the sign-in page (standalone Docker): PeakForm mails a link to set
+  a new one. It works once, for an hour, and signs you out on every other device. Needs outgoing
+  mail on the server (`SMTP_*` and `PUBLIC_URL` in `.env`, see the README).
+- **Account → E-mail**: where that link goes. Optional, also asked when creating an account;
+  changing it takes your current password.
+- **`reset-password` command** for whoever runs the server, for accounts without an e-mail or a
+  server without mail: `docker compose exec -it peakform node dist/server/reset-password.js <username>`.
+
+In Home Assistant nothing changes: you sign in through Home Assistant, PeakForm has no password.
+
 ## 0.14.0 – Tiles that tell good from bad
 
 ### Added
