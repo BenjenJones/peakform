@@ -102,6 +102,30 @@ npm run reset-password -- <username>       # from a checkout
 
 Both sign the account out everywhere; the Garmin key and all data stay.
 
+### Moving from Home Assistant to Docker
+
+Everything PeakForm stores is one SQLite file, so it moves as a whole: accounts, Garmin data,
+activities, reviews and settings.
+
+1. In HA, **Settings → System → Backups**: create a backup with only the PeakForm app and
+   download it. Inside the `.tar` is `…_peakform.tar.gz`; its `data/` folder holds
+   `garmin.sqlite` and, if the app option `master_key` was empty, `master.key`. (HA encrypts
+   backups by default; open it with the key from your backup emergency kit.) The app is stopped
+   for the backup (`backup: cold`), so the file is consistent.
+2. On the Docker host, put `garmin.sqlite` into `./data/` and the master key into
+   `master_key.txt`: the app option `master_key` if you had set one, otherwise the content of
+   `master.key`. With a different key the data stays, but the stored Garmin and Anthropic keys
+   cannot be decrypted and have to be entered again.
+3. `docker compose up -d`, then give each account a password. Accounts from Home Assistant are
+   called `ha.<name>` and had none; `--rename` drops the prefix:
+
+   ```sh
+   docker compose exec -it peakform node dist/server/reset-password.js ha.ben --rename ben
+   ```
+
+   Without a username the command lists all accounts. Add an e-mail under **Account** afterwards
+   if you want **Forgot your password?** to work.
+
 ## Security model
 
 | What | How |

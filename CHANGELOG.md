@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.16.0 – Move from Home Assistant to Docker
+
+### Added
+
+- **Moving from Home Assistant to a Docker host** is now possible without losing anything: take
+  the database from an HA backup, start the Docker container with it and give your account a
+  password with `reset-password`. The README has the steps.
+- **`reset-password --rename <name>`** gives an account a new username, e.g. to drop the `ha.`
+  prefix of accounts from Home Assistant. Without a username the command lists all accounts.
+
+### Changed
+
+- **`reset-password`** also sets a password for accounts that came from Home Assistant, which had
+  none. In the Home Assistant app itself it refuses, as everyone signs in through Home Assistant.
+
 ## 0.15.0 – Forgotten password
 
 ### Added

@@ -39,3 +39,11 @@ dashboard flags a rejected key in **Account**.
 
 PeakForm is an independent project, not affiliated with or endorsed by Garmin. Garmin and
 Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.
+
+## Moving to a Docker host
+
+Everything PeakForm stores is one file, `garmin.sqlite`, in this app's backups. To run PeakForm
+outside Home Assistant, take it from a backup of this app and follow "Moving from Home Assistant
+to Docker" in the [README](https://github.com/BenjenJones/peakform#moving-from-home-assistant-to-docker).
+Note your `master_key` option first if you set one: without it the stored API keys have to be
+entered again.
