@@ -2,9 +2,12 @@
 //   npm run reset-password -- <username>                                          (from the repository)
 //   docker compose exec -it peakform node dist/server/reset-password.js <username>  (in the container)
 // Signs the account out everywhere. The Garmin key and all data stay.
+// Also gives accounts from the Home Assistant app a password after moving to Docker; --rename drops
+// their "ha." prefix: npm run reset-password -- ha.ben --rename ben
 import { createInterface } from "node:readline";
 import { db } from "./db.js";
-import { MIN_PASSWORD, setPassword } from "./users.js";
+import { config } from "./config.js";
+import { MIN_PASSWORD, renameUser, setPassword, validateUsername } from "./users.js";
 
 /** Reads a line without echoing it. */
 function ask(question: string): Promise<string> {
@@ -23,22 +26,44 @@ function ask(question: string): Promise<string> {
   });
 }
 
-const username = process.argv[2];
+const USAGE = "Usage: npm run reset-password -- <username> [--rename <new username>]";
+const args = process.argv.slice(2);
+const ri = args.indexOf("--rename");
+const rename = ri >= 0 ? args[ri + 1] : undefined;
+const username = args.find((a, i) => !a.startsWith("--") && (ri < 0 || i !== ri + 1));
+if (ri >= 0 && !rename) {
+  console.error(USAGE);
+  process.exit(1);
+}
+
+if (config.isHaApp) {
+  console.error("In Home Assistant everyone signs in through Home Assistant; PeakForm has no passwords there.");
+  process.exit(1);
+}
 const user = db.prepare("SELECT id, password_hash FROM user WHERE username = ?").get(username ?? "") as
   | { id: number; password_hash: string | null }
   | undefined;
 if (!user) {
-  console.error(`Usage: npm run reset-password -- <username>${username ? ` (no user "${username}")` : ""}`);
+  const names = (db.prepare("SELECT username FROM user ORDER BY id").all() as { username: string }[]).map((u) => u.username);
+  console.error(`${USAGE}${username ? `
+No user "${username}".` : ""}${names.length ? ` Accounts: ${names.join(", ")}` : ""}`);
   process.exit(1);
 }
-if (!user.password_hash) {
-  console.error(`"${username}" signs in through Home Assistant and has no password here.`);
-  process.exit(1);
+// An account from the Home Assistant app (moved to Docker) has no password yet: this gives it one.
+const fromHa = !user.password_hash;
+if (rename) {
+  try {
+    validateUsername(rename, user.id);
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
 }
 if (!process.stdin.isTTY) {
   console.error("Run this in a terminal (with docker: docker compose exec -it …), the password is read without echo.");
   process.exit(1);
 }
+if (fromHa) console.log(`"${username}" comes from Home Assistant. Choose a password to sign in with outside of it.`);
 
 const pw = await ask("New password: ");
 if (pw.length < MIN_PASSWORD) {
@@ -49,5 +74,11 @@ if ((await ask("Repeat it: ")) !== pw) {
   console.error("The passwords do not match.");
   process.exit(1);
 }
+if (rename) renameUser(user.id, rename);
 await setPassword(user.id, pw);
-console.log(`Password of "${username}" changed; all its sessions are signed out.`);
+const name = rename ?? username;
+console.log(
+  fromHa
+    ? `"${name}" can now sign in with this password. The Garmin key and all data stay.`
+    : `Password of "${name}" changed; all its sessions are signed out.`,
+);

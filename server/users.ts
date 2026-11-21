@@ -28,9 +28,19 @@ export function getUser(id: number): User | null {
 
 // ---------- Local accounts ----------
 
-export async function register(username: string, password: string, email = ""): Promise<User> {
+/** Rules for a new local username; `self` may keep its own name in another case. */
+export function validateUsername(username: string, self?: number) {
   if (!USERNAME_RE.test(username)) throw new UserError("username_invalid", "Username: 3–32 characters, letters, digits, . _ -");
   if (username.toLowerCase().startsWith("ha.")) throw new UserError("username_reserved", 'Usernames starting with "ha." are reserved');
+  const other = db.prepare("SELECT id FROM user WHERE username = ?").get(username) as { id: number } | undefined;
+  if (other && other.id !== self) throw new UserError("username_taken", "Username is taken");
+}
+
+/** Command line only (moving from Home Assistant): the web app has no rename. */
+export const renameUser = (userId: number, username: string) => db.prepare("UPDATE user SET username = ? WHERE id = ?").run(username, userId);
+
+export async function register(username: string, password: string, email = ""): Promise<User> {
+  validateUsername(username);
   if (password.length < MIN_PASSWORD) throw new UserError("password_too_short", `Password must be at least ${MIN_PASSWORD} characters`);
   const mail = normalizeEmail(email);
   const hash = await hashPassword(password);
