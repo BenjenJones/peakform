@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.14.0 – Tiles that tell good from bad
+
+### Added
+
+- **Status on every tile** (Day and Overview): a colored edge and a word – **Good**, **Normal**,
+  **High**, **Low**, **Goal reached**, **Below goal** – show at a glance whether a value is fine.
+  Green is good, teal normal, yellow worth a look, red clearly off. Hover the word for the range
+  and where it comes from. The range is also drawn as a shaded band in the tile's picture, and
+  today's point takes the status color.
+  - Fixed references where they exist: Garmin's HRV balanced range, your sleep need, the step and
+    intensity goals, sleep score (80+), Body Battery high (75+), sleep stress (rest zone), SpO2
+    (95 %+), BMI (18.5–25), body fat and water by sex, weight between ideal and normal weight,
+    ACWR (0.8–1.3) and form (−30 to +25).
+  - Your own usual range otherwise (last 60 days, average ± one standard deviation), e.g. resting
+    heart rate, stress or breathing rate. It appears once there are 14 days of data.
+  - Totals that still grow during the day (distance, floors, calories) get no status.
+
+### Changed
+
+- **Tiles on Day and Overview** no longer all carry the same sparkline. The small picture now fits
+  the kind of metric, so tiles side by side are easy to tell apart:
+  - **Ring** next to the value for 0–100 scores: sleep score, Body Battery, stress and the weekly
+    intensity minutes against your goal, in the status color.
+  - **Bars** for daily totals: steps, distance, floors, calories, load, hours of sleep and stress.
+  - **Dots** for weigh-ins, so days without a measurement don't look like a trend.
+  - **Range bar** for last night's HRV against your balanced range and for ACWR against 0.8–1.3.
+  - **Bars above and below zero** for form (TSB).
+  - **Line** for levels that drift, heart rate lines in the orange of the heart rate charts.
+- **Compact day view** now shows these pictures too, smaller, and the status instead of the change
+  against the last week.
+
 ## 0.13.1 – Correct splits in Compare
 
 ### Fixed

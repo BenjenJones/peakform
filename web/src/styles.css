@@ -208,7 +208,42 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.4; }
 @media (max-width: 1100px) { .stats.top { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 600px) { .stats.top { grid-template-columns: repeat(2, 1fr); } }
 .spark { display: block; width: 100%; height: 22px; margin-top: 4px; }
-.spark polyline { fill: none; stroke: var(--s1); stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+/* Tile pictures by type of metric (TileViz.tsx). */
+.spark svg { display: block; width: 100%; height: 100%; }
+.viz-line { position: relative; color: var(--s1); }
+.viz-line polyline { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.viz-line .end {
+  position: absolute; width: 7px; height: 7px; border-radius: 50%; transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+/* The range a tile is judged against (status.ts), behind every picture. */
+.range-band { fill: var(--s3); opacity: 0.16; }
+.viz-dots svg { position: absolute; inset: 0; }
+.viz-bars .zero { stroke: var(--axis); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.viz-dots { position: relative; }
+.viz-dots span {
+  position: absolute; width: 5px; height: 5px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: var(--s1); opacity: 0.45;
+}
+.viz-dots span.last { width: 7px; height: 7px; opacity: 1; }
+.viz-band { position: relative; height: 22px; }
+.viz-band::before { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--grid); }
+.viz-band .band { position: absolute; top: 8px; height: 6px; border-radius: 3px; background: var(--s3); opacity: 0.45; }
+.viz-band .mark { position: absolute; top: 4px; width: 4px; height: 14px; border-radius: 2px; transform: translateX(-50%); }
+.value.with-ring { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.ring { flex: none; width: 30px; height: 30px; }
+.ring circle { fill: none; stroke-width: 4.5; }
+.ring .ring-track { stroke: var(--grid); }
+.ring .ring-fill { stroke-linecap: round; }
+.tile .ring { width: 36px; height: 36px; }
+/* Status of the value: a colored edge and a word, so good and bad read without the numbers. */
+.status { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink); margin-top: 1px; }
+.status .dot { flex: none; width: 7px; height: 7px; }
+.status .dot + * { margin-left: 0; }
+.stat.tone-good, .tile.tone-good { box-shadow: inset 3px 0 0 var(--good); }
+.stat.tone-ok, .tile.tone-ok { box-shadow: inset 3px 0 0 var(--s3); }
+.stat.tone-warn, .tile.tone-warn { box-shadow: inset 3px 0 0 var(--warning); }
+.stat.tone-bad, .tile.tone-bad { box-shadow: inset 3px 0 0 var(--critical); }
 
 .stack { display: flex; gap: 2px; height: 14px; border-radius: 7px; overflow: hidden; margin: 6px 0 8px; }
 .stack span { min-width: 2px; }
@@ -230,13 +265,19 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.4; }
 .range .ref { position: absolute; top: -2px; width: 2px; height: 14px; transform: translateX(-50%); }
 .range .ticks span { white-space: nowrap; }
 
-/* Day page, compact view: tiles only, smaller, without sparklines. */
+/* Day page, compact view: tiles only, smaller, with lower tile pictures. */
 .compact .card { padding: 12px 14px; }
 .compact .card > h2 { margin-bottom: 0; }
 .compact .stats { margin-top: 8px; gap: 6px; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
 .compact .stat { padding: 6px 8px 5px; }
 .compact .stat .value { font-size: 17px; }
-.compact .spark { display: none; }
+.compact .spark { height: 14px; margin-top: 2px; }
+.compact .viz-band::before, .compact .viz-band .band { top: 4px; }
+.compact .viz-band .mark { top: 1px; height: 12px; }
+.compact .ring { width: 24px; height: 24px; }
+.compact .status { font-size: 11.5px; }
+/* Compact: the status replaces the change against the last week. */
+.compact .status + .delta { display: none; }
 .compact .hero .score { font-size: 40px; }
 .dialog-body { flex: 1; min-height: 0; overflow-y: auto; margin-top: 8px; }
 
