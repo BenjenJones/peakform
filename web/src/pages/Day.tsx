@@ -5,6 +5,8 @@ import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, type T, useI18n } from "../i18n";
 import { type MetricKey, MetricIcon } from "../icons";
 import { prefGet, prefSet } from "../prefs";
+import { ACWR, BB_HIGH, BMI, fixed, goal, type Judge, judge, personal, SLEEP_SCORE, SLEEP_STRESS, SPO2, TONE_COLOR, TSB } from "../status";
+import { Ring, TileViz, type Viz } from "../TileViz";
 import { CardTitle, Dialog, Info } from "../ui";
 import { weightRefs, weightRefText } from "../weightRef";
 import { type MetricSource, type RefLine, tap, useMetricZoom, useZoom, ZoomCtx } from "../Zoom";
@@ -78,6 +80,15 @@ const fmtHm = (h: number) => {
 const hm = (h: number) => `${fmtHm(h)} h`;
 
 const EMPTY: DayMetric = { value: null, avg7: null, baseline: null, trend: [] };
+
+// Tile pictures by type of metric, see TileViz.
+const GAUGE: Viz = { kind: "gauge" };
+/** Heart rate in the orange of the heart rate charts. */
+const HR: Viz = { kind: "line", color: "var(--s2)" };
+const BARS: Viz = { kind: "bars" };
+const DOTS: Viz = { kind: "dots" };
+const BAND: Viz = { kind: "band" };
+
 
 /** Day shown on the page; sparklines place their points relative to it. */
 const DayCtx = createContext("");
@@ -159,32 +170,18 @@ function findings(d: DayData, t: T): { tone: Tone; text: string }[] {
   return [...out.filter((f) => f.tone === "bad"), ...out.filter((f) => f.tone !== "bad")];
 }
 
-function Spark({ trend }: { trend: Point[] }) {
-  const end = useContext(DayCtx);
-  if (trend.length < 2) return <div className="spark" />;
-  // x by calendar day, so missing days stay visible as wider steps.
-  const start = Date.parse(shift(end, -13));
-  const vs = trend.map((p) => p.value);
-  const lo = Math.min(...vs);
-  const hi = Math.max(...vs);
-  const pts = trend
-    .map((p) => `${((Date.parse(p.date) - start) / (13 * 86_400_000)) * 100},${hi === lo ? 12 : 22 - ((p.value - lo) / (hi - lo)) * 20}`)
-    .join(" ");
-  return (
-    <svg className="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden>
-      <polyline points={pts} />
-    </svg>
-  );
-}
-
 /** Value tile: change vs the 7 days before, colored when the direction has a clear "better". */
-function Stat({ icon, label, m, src, bar, hrGroup, refs, unit = "", digits = 0, fmt, better, help, note }: {
+function Stat({ icon, label, m, src, bar, viz, judge: judgeBy, hrGroup, refs, unit = "", digits = 0, fmt, better, help, note }: {
   icon: MetricKey;
   label: string;
   m: DayMetric;
   /** History for the big chart; without it the tile is not tappable. */
   src?: MetricSource;
   bar?: boolean;
+  /** Picture at the foot of the tile; bars for `bar` metrics, a line otherwise. */
+  viz?: Viz;
+  /** Range the value is judged against; by default the user's own when `better` is set, null: none. */
+  judge?: Judge | null;
   /** Part of the resting/lowest/highest heart rate chart, see MetricSpec. */
   hrGroup?: boolean;
   /** Reference lines in the big chart. */
@@ -198,23 +195,37 @@ function Stat({ icon, label, m, src, bar, hrGroup, refs, unit = "", digits = 0, 
 }) {
   const { t } = useI18n();
   const zoom = useZoom();
+  const end = useContext(DayCtx);
   // Hide metrics this user's device never records (e.g. SpO2).
   if (m.value === null && !m.trend.length) return null;
   const f = fmt ?? ((v: number) => fmtNum(v, digits));
+  const v: Viz = viz ?? { kind: bar ? "bars" : "line" };
   const open = zoom && src !== undefined ? () => zoom({ title: label, icon, unit, fmt: f, source: src, bar, hrGroup, refs }) : null;
   const delta = m.value !== null && m.avg7 !== null ? m.value - m.avg7 : null;
   const good = delta !== null && (better === "up" ? delta >= 0 : better === "down" ? delta <= 0 : false);
+  const j = judgeBy !== undefined ? judgeBy : better ? personal(m, better) : null;
+  const st = j && m.value !== null ? judge(m.value, j, t, f) : null;
+  const color = st ? TONE_COLOR[st.tone] : undefined;
   return (
-    <div className={open ? "stat click" : "stat"} {...tap(open)}>
+    <div className={["stat", open && "click", st && `tone-${st.tone}`].filter(Boolean).join(" ")} {...tap(open)}>
       <div className="label">
         <MetricIcon m={icon} />
         {label}
         {help && <Info help={help} />}
       </div>
-      <div className="value">
-        {m.value !== null ? f(m.value) : "–"}
-        {unit && m.value !== null && <span className="unit">{unit}</span>}
+      <div className={v.kind === "gauge" ? "value with-ring" : "value"}>
+        <span>
+          {m.value !== null ? f(m.value) : "–"}
+          {unit && m.value !== null && <span className="unit">{unit}</span>}
+        </span>
+        {v.kind === "gauge" && m.value !== null && <Ring value={m.value} max={v.max} color={color} />}
       </div>
+      {st && (
+        <div className="status" title={st.hint}>
+          <span className="dot" style={{ background: color }} />
+          {st.word}
+        </div>
+      )}
       <div className="delta">
         {note ??
           (delta !== null ? (
@@ -226,7 +237,7 @@ function Stat({ icon, label, m, src, bar, hrGroup, refs, unit = "", digits = 0, 
             t("common.noData")
           ))}
       </div>
-      <Spark trend={m.trend} />
+      <TileViz viz={v} trend={m.trend} end={end} value={m.value} range={j} tone={color} />
     </div>
   );
 }
@@ -585,61 +596,76 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   const bbMinute = m("bb_latest_minute").value;
   const shownWeight = weighIn("weight").value;
 
+  // Ranges with a source better than the user's own last 60 days (see the constants at the top).
+  const sleepNeed = m("sleep_need_hours").value;
+  const jSleep: Judge = sleepNeed !== null
+    ? { ...fixed(sleepNeed - 0.25, Infinity, 0.75, "up"), hint: "status.hintSleepNeed" }
+    : fixed(7, Infinity, 1, "up");
+  // Above the balanced range is "unbalanced" for Garmin too, so no better side.
+  const jHrv: Judge | null = lo !== null && hi !== null ? { ...fixed(lo, hi, lo * 0.1), hint: "status.hintHrv" } : null;
+  const jWeight: Judge | null =
+    ref?.ideal != null && ref.normal != null ? { ...fixed(ref.ideal, ref.normal, ref.normal * 0.1), hint: "status.hintWeight" } : null;
+  const sex = ref?.sex ?? null;
+  const jFat = sex ? fixed(sex === "male" ? 10 : 18, sex === "male" ? 20 : 28, 5) : null;
+  const jWater = sex ? fixed(sex === "male" ? 50 : 45, sex === "male" ? 65 : 60, 5) : null;
+  const jSteps = stepsGoal ? goal(stepsGoal) : null;
+
   // Tile groups shared by both views.
   const hrStats = (
     <>
-      <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup unit="bpm" better="down" help="help.rhr" />
-      <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup unit="bpm" better="down" help="help.rhr" />
-      <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" hrGroup unit="bpm" />
-      <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" hrGroup unit="bpm" />
+      <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup viz={HR} unit="bpm" better="down" help="help.rhr" />
+      <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup viz={HR} unit="bpm" better="down" help="help.rhr" />
+      <Stat icon="hrMin" label={metric("hr_min")} m={m("hr_min")} src="hr_min" hrGroup viz={HR} unit="bpm" better="down" />
+      <Stat icon="hrMax" label={metric("hr_max")} m={m("hr_max")} src="hr_max" hrGroup viz={HR} unit="bpm" />
     </>
   );
   const sleepStats = (
     <>
-      <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" unit="h" fmt={fmtHm} better="up" help="help.sleep" />
+      <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" viz={BARS} judge={jSleep} unit="h" fmt={fmtHm} better="up" help="help.sleep" />
       <Stat icon="sleepNeed" label={metric("sleep_need_hours")} m={m("sleep_need_hours")} src="sleep_need_hours" unit="h" fmt={fmtHm} help="help.sleep_need" />
-      <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" better="up" help="help.sleep_score" />
-      <Stat icon="hr" label={metric("sleep_hr")} m={m("sleep_hr")} src="sleep_hr" unit="bpm" better="down" />
-      <Stat icon="resp" label={metric("sleep_resp")} m={m("sleep_resp")} src="sleep_resp" unit="brpm" />
-      <Stat icon="spo2" label={metric("spo2_avg")} m={m("spo2_avg")} src="spo2_avg" unit="%" />
-      <Stat icon="stress" label={metric("sleep_stress")} m={m("sleep_stress")} src="sleep_stress" better="down" />
+      <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" viz={GAUGE} judge={SLEEP_SCORE} better="up" help="help.sleep_score" />
+      <Stat icon="hr" label={metric("sleep_hr")} m={m("sleep_hr")} src="sleep_hr" viz={HR} unit="bpm" better="down" />
+      <Stat icon="resp" label={metric("sleep_resp")} m={m("sleep_resp")} src="sleep_resp" judge={personal(m("sleep_resp"))} unit="brpm" />
+      <Stat icon="spo2" label={metric("spo2_avg")} m={m("spo2_avg")} src="spo2_avg" judge={SPO2} unit="%" />
+      <Stat icon="stress" label={metric("sleep_stress")} m={m("sleep_stress")} src="sleep_stress" viz={GAUGE} judge={SLEEP_STRESS} better="down" />
     </>
   );
   const recoveryStats = (
     <>
-      <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" unit="ms" better="up" help="help.hrv" />
-      <Stat icon="hrv" label={metric("hrv_weekly")} m={m("hrv_weekly")} src="hrv_weekly" unit="ms" better="up" />
-      <Stat icon="bodyBattery" label={metric("bb_high")} m={m("bb_high")} src="bb_high" better="up" help="help.bb" />
-      <Stat icon="bbLow" label={metric("bb_low")} m={m("bb_low")} src="bb_low" better="up" />
-      <Stat icon="bodyBattery" label={metric("bb_charged")} m={m("bb_charged")} src="bb_charged" better="up" help="help.bb_flow" />
-      <Stat icon="bbDrained" label={metric("bb_drained")} m={m("bb_drained")} src="bb_drained" />
+      <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" viz={jHrv ? BAND : undefined} judge={jHrv ?? personal(m("hrv_night"), "up")} unit="ms" better="up" help="help.hrv" />
+      <Stat icon="hrv" label={metric("hrv_weekly")} m={m("hrv_weekly")} src="hrv_weekly" judge={jHrv ?? personal(m("hrv_weekly"), "up")} unit="ms" better="up" />
+      <Stat icon="bodyBattery" label={metric("bb_high")} m={m("bb_high")} src="bb_high" viz={GAUGE} judge={BB_HIGH} better="up" help="help.bb" />
+      <Stat icon="bbLow" label={metric("bb_low")} m={m("bb_low")} src="bb_low" viz={GAUGE} better="up" />
+      <Stat icon="bodyBattery" label={metric("bb_charged")} m={m("bb_charged")} src="bb_charged" viz={BARS} better="up" help="help.bb_flow" />
+      <Stat icon="bbDrained" label={metric("bb_drained")} m={m("bb_drained")} src="bb_drained" viz={BARS} />
     </>
   );
   const bodyStats = (
     <>
-      <Stat icon="weight" label={metric("weight")} m={weighIn("weight")} src="weight" refs={wRefs} unit="kg" digits={1} help="help.weight" note={weighInNote("weight")} />
-      <Stat icon="bmi" label={metric("bmi")} m={weighIn("bmi")} src="bmi" digits={1} help="help.bmi" note={weighInNote("bmi")} />
-      <Stat icon="bodyFat" label={metric("body_fat")} m={weighIn("body_fat")} src="body_fat" unit="%" digits={1} better="down" help="help.body_fat" note={weighInNote("body_fat")} />
-      <Stat icon="bodyWater" label={metric("body_water")} m={weighIn("body_water")} src="body_water" unit="%" digits={1} help="help.body_water" note={weighInNote("body_water")} />
-      <Stat icon="muscle" label={metric("muscle_mass")} m={weighIn("muscle_mass")} src="muscle_mass" unit="kg" digits={1} better="up" help="help.muscle_mass" note={weighInNote("muscle_mass")} />
-      <Stat icon="bone" label={metric("bone_mass")} m={weighIn("bone_mass")} src="bone_mass" unit="kg" digits={1} help="help.bone_mass" note={weighInNote("bone_mass")} />
+      <Stat icon="weight" label={metric("weight")} m={weighIn("weight")} src="weight" viz={DOTS} judge={jWeight} refs={wRefs} unit="kg" digits={1} help="help.weight" note={weighInNote("weight")} />
+      <Stat icon="bmi" label={metric("bmi")} m={weighIn("bmi")} src="bmi" viz={DOTS} judge={BMI} digits={1} help="help.bmi" note={weighInNote("bmi")} />
+      <Stat icon="bodyFat" label={metric("body_fat")} m={weighIn("body_fat")} src="body_fat" viz={DOTS} judge={jFat} unit="%" digits={1} better="down" help="help.body_fat" note={weighInNote("body_fat")} />
+      <Stat icon="bodyWater" label={metric("body_water")} m={weighIn("body_water")} src="body_water" viz={DOTS} judge={jWater} unit="%" digits={1} help="help.body_water" note={weighInNote("body_water")} />
+      <Stat icon="muscle" label={metric("muscle_mass")} m={weighIn("muscle_mass")} src="muscle_mass" viz={DOTS} unit="kg" digits={1} better="up" help="help.muscle_mass" note={weighInNote("muscle_mass")} />
+      <Stat icon="bone" label={metric("bone_mass")} m={weighIn("bone_mass")} src="bone_mass" viz={DOTS} unit="kg" digits={1} help="help.bone_mass" note={weighInNote("bone_mass")} />
     </>
   );
+  // Daily totals still grow during the day, so only the step goal judges them.
   const moveStats = (
     <>
-      <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar better="up" />
-      <Stat icon="distance" label={metric("distance_km")} m={m("distance_km")} src="distance_km" bar unit="km" digits={1} better="up" />
-      <Stat icon="floors" label={metric("floors")} m={m("floors")} src="floors" bar better="up" />
-      <Stat icon="intensity" label={t("day.intensityToday")} m={intensity} src={{ intensity: true }} bar unit="min" better="up" help="help.intensity" />
+      <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar judge={jSteps} better="up" />
+      <Stat icon="distance" label={metric("distance_km")} m={m("distance_km")} src="distance_km" bar judge={null} unit="km" digits={1} better="up" />
+      <Stat icon="floors" label={metric("floors")} m={m("floors")} src="floors" bar judge={null} better="up" />
+      <Stat icon="intensity" label={t("day.intensityToday")} m={intensity} src={{ intensity: true }} bar judge={null} unit="min" better="up" help="help.intensity" />
       <Stat icon="calories" label={metric("calories_total")} m={m("calories_total")} src="calories_total" bar unit="kcal" />
-      <Stat icon="calories" label={metric("calories_active")} m={m("calories_active")} src="calories_active" bar unit="kcal" better="up" />
+      <Stat icon="calories" label={metric("calories_active")} m={m("calories_active")} src="calories_active" bar judge={null} unit="kcal" better="up" />
     </>
   );
   const stressStats = (
     <>
-      <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" better="down" help="help.stress" />
-      <Stat icon="stress" label={metric("stress_high_hours")} m={m("stress_high_hours")} src="stress_high_hours" unit="h" fmt={fmtHm} better="down" />
-      <Stat icon="rest" label={metric("stress_rest_hours")} m={m("stress_rest_hours")} src="stress_rest_hours" unit="h" fmt={fmtHm} better="up" />
+      <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" viz={GAUGE} better="down" help="help.stress" />
+      <Stat icon="stress" label={metric("stress_high_hours")} m={m("stress_high_hours")} src="stress_high_hours" viz={BARS} judge={null} unit="h" fmt={fmtHm} better="down" />
+      <Stat icon="rest" label={metric("stress_rest_hours")} m={m("stress_rest_hours")} src="stress_rest_hours" viz={BARS} judge={null} unit="h" fmt={fmtHm} better="up" />
     </>
   );
   const trainingStats = (
@@ -647,8 +673,8 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
       <Stat icon="load" label={t("metric.load.load")} m={fromLoad("load")} src={{ load: "load" }} bar />
       <Stat icon="fitness" label={t("metric.load.ctl")} m={fromLoad("ctl")} src={{ load: "ctl" }} better="up" help="help.fitness_fatigue" />
       <Stat icon="fatigue" label={t("metric.load.atl")} m={fromLoad("atl")} src={{ load: "atl" }} />
-      <Stat icon="form" label={t("metric.load.tsb")} m={fromLoad("tsb")} src={{ load: "tsb" }} help="help.tsb" />
-      <Stat icon="acwr" label={t("training.acwr")} m={fromLoad("acwr")} src={{ load: "acwr" }} digits={2} help="help.acwr" />
+      <Stat icon="form" label={t("metric.load.tsb")} m={fromLoad("tsb")} src={{ load: "tsb" }} viz={{ kind: "diverge" }} judge={TSB} help="help.tsb" />
+      <Stat icon="acwr" label={t("training.acwr")} m={fromLoad("acwr")} src={{ load: "acwr" }} viz={BAND} judge={ACWR} digits={2} help="help.acwr" />
     </>
   );
 
@@ -819,7 +845,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
                 </ChartTile>
                 {sleepStats}
                 {sleepParts.map((p) => (
-                  <Stat key={p.src} icon="stages" label={p.label} m={m(p.src)} src={p.src} unit="h" fmt={fmtHm} />
+                  <Stat key={p.src} icon="stages" label={p.label} m={m(p.src)} src={p.src} viz={BARS} unit="h" fmt={fmtHm} />
                 ))}
               </div>
             </div>
@@ -832,9 +858,9 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
             <div className="card span-4">
               <CardTitle icon="stress" title={t("day.stress")} help="help.stress_breakdown" />
               <div className="stats">
-                <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" better="down" help="help.stress" />
+                <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" viz={GAUGE} better="down" help="help.stress" />
                 {stressParts.map((p) => (
-                  <Stat key={p.src} icon={p.src === "stress_rest_hours" ? "rest" : "stress"} label={p.label} m={m(p.src)} src={p.src} unit="h" fmt={fmtHm} />
+                  <Stat key={p.src} icon={p.src === "stress_rest_hours" ? "rest" : "stress"} label={p.label} m={m(p.src)} src={p.src} viz={BARS} unit="h" fmt={fmtHm} />
                 ))}
               </div>
             </div>
@@ -857,6 +883,8 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
                     m={weekIntensity}
                     src={{ intensity: true }}
                     bar
+                    viz={{ kind: "gauge", max: imGoal }}
+                    judge={goal(imGoal)}
                     unit="min"
                     help="help.intensity"
                     note={<span style={{ color: d.intensityWeek >= imGoal ? "var(--up)" : undefined }}>{t("day.goal", { goal: fmtNum(imGoal) })}</span>}
@@ -877,21 +905,22 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
         {d && hasData && view === "detailed" && (
           <>
             <div className="stats top">
-              <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" unit="h" fmt={fmtHm} better="up" help="help.sleep" />
-              <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" better="up" help="help.sleep_score" />
-              <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" unit="ms" better="up" help="help.hrv" />
-              <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup unit="bpm" better="down" help="help.rhr" />
-              <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup unit="bpm" better="down" help="help.rhr" />
+              <Stat icon="sleep" label={metric("sleep_hours")} m={m("sleep_hours")} src="sleep_hours" viz={BARS} judge={jSleep} unit="h" fmt={fmtHm} better="up" help="help.sleep" />
+              <Stat icon="sleepScore" label={metric("sleep_score")} m={m("sleep_score")} src="sleep_score" viz={GAUGE} judge={SLEEP_SCORE} better="up" help="help.sleep_score" />
+              <Stat icon="hrv" label={metric("hrv_night")} m={m("hrv_night")} src="hrv_night" viz={jHrv ? BAND : undefined} judge={jHrv ?? personal(m("hrv_night"), "up")} unit="ms" better="up" help="help.hrv" />
+              <Stat icon="rhr" label={metric("rhr_night")} m={m("rhr_night")} src="rhr_night" hrGroup viz={HR} unit="bpm" better="down" help="help.rhr" />
+              <Stat icon="rhr" label={metric("rhr_day")} m={m("rhr_day")} src="rhr_day" hrGroup viz={HR} unit="bpm" better="down" help="help.rhr" />
               <Stat
                 icon="bodyBattery"
                 label={t("metric.body_battery")}
                 m={m("bb_latest")}
                 src="bb_latest"
+                viz={GAUGE}
                 help="help.bb_latest"
                 note={bbMinute !== null ? t("day.asOf", { t: fmtHm(bbMinute / 60) }) : undefined}
               />
-              <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" better="down" help="help.stress" />
-              <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar better="up" />
+              <Stat icon="stress" label={metric("stress_avg")} m={m("stress_avg")} src="stress_avg" viz={GAUGE} better="down" help="help.stress" />
+              <Stat icon="steps" label={metric("steps")} m={m("steps")} src="steps" bar judge={jSteps} better="up" />
               <Stat icon="load" label={t("metric.load.load")} m={fromLoad("load")} src={{ load: "load" }} bar help="help.load" />
             </div>
 

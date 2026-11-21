@@ -5,17 +5,47 @@ import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, useI18n } from "../i18n";
 import { type MetricKey, MetricIcon } from "../icons";
 import { CardTitle, Info } from "../ui";
+import { BB_HIGH, fixed, type Judge, judge, personalFrom, SLEEP_SCORE, TONE_COLOR } from "../status";
+import { Ring, TileViz, type Viz } from "../TileViz";
 import { tap, useMetricZoom } from "../Zoom";
 
-const TILE_KEYS: { key: string; icon: MetricKey; help: Key; unit: string; digits: number; higherIsBetter: boolean }[] = [
-  { key: "hrv_night", icon: "hrv", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true },
-  { key: "rhr_night", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
-  { key: "rhr_day", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false },
-  { key: "sleep_hours", icon: "sleep", help: "help.sleep", unit: "h", digits: 1, higherIsBetter: true },
-  { key: "sleep_score", icon: "sleepScore", help: "help.sleep_score", unit: "", digits: 0, higherIsBetter: true },
-  { key: "bb_high", icon: "bodyBattery", help: "help.bb", unit: "", digits: 0, higherIsBetter: true },
-  { key: "stress_avg", icon: "stress", help: "help.stress", unit: "", digits: 0, higherIsBetter: false },
+const HR: Viz = { kind: "line", color: "var(--s2)" };
+const lastOf = (s: SeriesMap, k: string) => s[k]?.at(-1)?.value ?? null;
+
+/** Like the Day page: fixed references where they exist, the user's own last weeks otherwise. */
+const TILE_KEYS: {
+  key: string;
+  icon: MetricKey;
+  help: Key;
+  unit: string;
+  digits: number;
+  higherIsBetter: boolean;
+  viz: Viz;
+  judge: (s: SeriesMap) => Judge | null;
+}[] = [
+  {
+    key: "hrv_night", icon: "hrv", help: "help.hrv", unit: "ms", digits: 0, higherIsBetter: true, viz: { kind: "line" },
+    judge: (s) => {
+      const lo = lastOf(s, "hrv_base_low");
+      const hi = lastOf(s, "hrv_base_high");
+      return lo !== null && hi !== null ? { ...fixed(lo, hi, lo * 0.1), hint: "status.hintHrv" } : personalFrom(s.hrv_night ?? [], "up");
+    },
+  },
+  { key: "rhr_night", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false, viz: HR, judge: (s) => personalFrom(s.rhr_night ?? [], "down") },
+  { key: "rhr_day", icon: "rhr", help: "help.rhr", unit: "bpm", digits: 0, higherIsBetter: false, viz: HR, judge: (s) => personalFrom(s.rhr_day ?? [], "down") },
+  {
+    key: "sleep_hours", icon: "sleep", help: "help.sleep", unit: "h", digits: 1, higherIsBetter: true, viz: { kind: "bars" },
+    judge: (s) => {
+      const need = lastOf(s, "sleep_need_hours");
+      return need !== null ? { ...fixed(need - 0.25, Infinity, 0.75, "up"), hint: "status.hintSleepNeed" } : fixed(7, Infinity, 1, "up");
+    },
+  },
+  { key: "sleep_score", icon: "sleepScore", help: "help.sleep_score", unit: "", digits: 0, higherIsBetter: true, viz: { kind: "gauge" }, judge: () => SLEEP_SCORE },
+  { key: "bb_high", icon: "bodyBattery", help: "help.bb", unit: "", digits: 0, higherIsBetter: true, viz: { kind: "gauge" }, judge: () => BB_HIGH },
+  { key: "stress_avg", icon: "stress", help: "help.stress", unit: "", digits: 0, higherIsBetter: false, viz: { kind: "gauge" }, judge: (s) => personalFrom(s.stress_avg ?? [], "down") },
 ];
+/** Not tiles themselves, only needed for the ranges above. */
+const RANGE_KEYS = ["hrv_base_low", "hrv_base_high", "sleep_need_hours"];
 
 const latest = (s: Point[] | undefined) => s?.[s.length - 1];
 const avg = (s: Point[]) => (s.length ? s.reduce((a, p) => a + p.value, 0) / s.length : NaN);
@@ -24,10 +54,11 @@ export function Overview({ range, refreshKey }: PageProps) {
   const { t, lang, metric, sport } = useI18n();
   const from = daysAgo(range);
   const { data: rd } = useApi<Readiness>("readiness", [refreshKey]);
-  const { data: series } = useApi<SeriesMap>(`series?keys=${TILE_KEYS.map((k) => k.key).join(",")}&from=${daysAgo(35)}`, [refreshKey]);
+  const { data: series } = useApi<SeriesMap>(`series?keys=${[...TILE_KEYS.map((k) => k.key), ...RANGE_KEYS].join(",")}&from=${daysAgo(35)}`, [refreshKey]);
   const { data: load } = useApi<LoadDay[]>(`load?from=${from}`, [refreshKey]);
   const { data: acts } = useApi<ActivityLite[]>(`activities?from=${daysAgo(14)}`, [refreshKey]);
-  const zoom = useMetricZoom(daysAgo(0));
+  const today = daysAgo(0);
+  const zoom = useMetricZoom(today);
 
   const dateAxis = (tk: Tokens) => ({
     ...(base(tk).xAxis as object),
@@ -102,10 +133,14 @@ export function Overview({ range, refreshKey }: PageProps) {
             const delta = now ? now.value - base7 : NaN;
             const good = k.higherIsBetter ? delta >= 0 : delta <= 0;
             const label = k.key === "bb_high" ? t("metric.body_battery") : metric(k.key);
-            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt: (v) => fmtNum(v, k.digits), source: k.key, hrGroup: k.key.startsWith("rhr_") });
+            const fmt = (v: number) => fmtNum(v, k.digits);
+            const open = () => zoom.open({ title: label, icon: k.icon, unit: k.unit, fmt, source: k.key, hrGroup: k.key.startsWith("rhr_") });
+            const j = series ? k.judge(series) : null;
+            const st = j && now ? judge(now.value, j, t, fmt) : null;
+            const color = st ? TONE_COLOR[st.tone] : undefined;
             return (
               <div
-                className="tile click"
+                className={st ? `tile click tone-${st.tone}` : "tile click"}
                 key={k.key}
                 {...tap(open)}
               >
@@ -114,10 +149,19 @@ export function Overview({ range, refreshKey }: PageProps) {
                   {label}
                   <Info help={k.help} />
                 </div>
-                <div className="value">
-                  {now ? fmtNum(now.value, k.digits) : "–"}
-                  <span className="unit">{k.unit}</span>
+                <div className={k.viz.kind === "gauge" ? "value with-ring" : "value"}>
+                  <span>
+                    {now ? fmtNum(now.value, k.digits) : "–"}
+                    <span className="unit">{k.unit}</span>
+                  </span>
+                  {k.viz.kind === "gauge" && now && <Ring value={now.value} max={k.viz.max} color={color} />}
                 </div>
+                {st && (
+                  <div className="status" title={st.hint}>
+                    <span className="dot" style={{ background: color }} />
+                    {st.word}
+                  </div>
+                )}
                 <div className="delta">
                   {Number.isFinite(delta) ? (
                     <span style={{ color: good ? "var(--up)" : "var(--ink-2)" }}>
@@ -128,6 +172,7 @@ export function Overview({ range, refreshKey }: PageProps) {
                     t("common.noData")
                   )}
                 </div>
+                <TileViz viz={k.viz} trend={s} end={now?.date ?? today} value={now?.value ?? null} range={j} tone={color} />
               </div>
             );
           })}
