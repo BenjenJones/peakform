@@ -25,14 +25,16 @@ Garmin Personal API ──(pull, hourly)──▶ sync ──▶ SQLite (/data) 
   Banister TRIMP), acute:chronic ratio, mean-max curves, aerobic decoupling, lagged correlation
   matrix, and a 0–100 readiness score from z-scores against a 60-day personal baseline.
 - **Activity reviews** (`server/review.ts`): sport activities (everything but walks) are reviewed
-  on request from the activity page, one at a time, through the Claude
-  API (`@anthropic-ai/sdk`, structured JSON output). Every user brings their own Anthropic API key
-  from the Claude Console; subscription logins (Pro/Max OAuth tokens) are deliberately not
-  supported, as Anthropic does not allow apps to use them on behalf of their users. The prompt
+  on request from the activity page, one at a time, through the Claude API (`@anthropic-ai/sdk`)
+  or the OpenAI Responses API (`openai`), both with structured JSON output against the same
+  schema. Every user brings their own API key, from the Claude Console or the OpenAI platform, and
+  picks the provider; subscription logins (Claude Pro/Max, ChatGPT Plus/Pro) are deliberately not
+  supported, as the providers do not allow apps to use them on behalf of their users. The prompt
   carries the activity, laps and decoupling, recovery around it, training load, recent sessions,
   sex/age from the profile, the user's own extra instructions and their rating of the activity
   (`server/feedback.ts`: feeling 1–5, planned session type, quick notes). Out-of-credit
-  (`billing_error`, spend limit) and key failures are shown as a notice in the app.
+  (Anthropic `billing_error` or spend limit, OpenAI `insufficient_quota`) and key failures are
+  shown as a notice in the app.
 
 ## Develop
 
@@ -114,7 +116,7 @@ activities, reviews and settings.
    for the backup (`backup: cold`), so the file is consistent.
 2. On the Docker host, put `garmin.sqlite` into `./data/` and the master key into
    `master_key.txt`: the app option `master_key` if you had set one, otherwise the content of
-   `master.key`. With a different key the data stays, but the stored Garmin and Anthropic keys
+   `master.key`. With a different key the data stays, but the stored Garmin, Anthropic and OpenAI keys
    cannot be decrypted and have to be entered again.
 3. `docker compose up -d`, then give each account a password. Accounts from Home Assistant are
    called `ha.<name>` and had none; `--rename` drops the prefix:
@@ -136,7 +138,7 @@ activities, reviews and settings.
 | Password reset | Optional, needs SMTP and `PUBLIC_URL`. 32 random bytes in the link's fragment (never sent to a server or in a `Referer`), only the SHA-256 is stored; valid 60 min, single use, every link and session of the account ends with the reset. The form answers the same for unknown accounts, accounts without e-mail and repeat requests, and sends in the background so timing does not tell either. At most one mail per account per 5 min and 5 requests per IP per 15 min. Changing the e-mail takes the current password. |
 | CSRF | SameSite cookies + `Origin` check on state-changing requests. |
 | Garmin API keys | Verified with Garmin, then AES-256-GCM encrypted with a master key kept outside the DB (`MASTER_KEY` / `MASTER_KEY_FILE` / HA option). Random 96-bit IV per write; user id bound as AAD, so ciphertext copied to another row will not decrypt. Never returned by the API. |
-| Anthropic API keys | Verified with Anthropic (free model list call), then encrypted like the Garmin keys with their own AAD context. Never returned by the API; each user's reviews use only their own key. |
+| Anthropic and OpenAI API keys | Verified with the provider (free model list call), then encrypted like the Garmin keys with their own AAD context per provider. Never returned by the API; each user's reviews use only their own key. OpenAI requests are sent with `store: false`. |
 | Key rotation | New key in `MASTER_KEY`, old in `MASTER_KEY_PREVIOUS`; re-encrypted on startup. |
 | Account deletion | Removes the user, key and all synced data (`ON DELETE CASCADE`). |
 

@@ -219,7 +219,7 @@ function SyncChip({ status, refresh }: { status: Status | null; refresh: () => P
   );
 }
 
-/** A review could not run: usage limit of the Claude plan reached, or the token stopped working. */
+/** A review could not run: the API key's credit is used up, or the key stopped working. */
 function ReviewBanner({ notice, refresh }: { notice: ReviewNotice; refresh: () => Promise<void> }) {
   const { t } = useI18n();
   const dismiss = () => send("me/review-notice", "DELETE").then(refresh, () => {});
@@ -227,12 +227,12 @@ function ReviewBanner({ notice, refresh }: { notice: ReviewNotice; refresh: () =
     <div className="card notice" role="alert" style={{ marginBottom: 12 }}>
       <div>
         <b>{t(notice.code === "quota" ? "review.noticeQuota" : "review.noticeAuth")}</b>{" "}
-        {t(notice.code === "quota" ? "review.noticeQuotaText" : "review.noticeAuthText")}{" "}
+        {t(`review.${notice.code === "quota" ? "noticeQuotaText" : "noticeAuthText"}.${notice.provider ?? "anthropic"}`)}{" "}
         <a href={notice.code === "quota" ? `#/activities/${notice.activityId}` : "#/account"}>
           {t(notice.code === "quota" ? "review.noticeOpen" : "review.noticeFix")}
         </a>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-          Claude: {notice.message}
+          {notice.provider === "openai" ? "OpenAI" : "Anthropic"}: {notice.message}
         </div>
       </div>
       <button className="btn" onClick={dismiss}>

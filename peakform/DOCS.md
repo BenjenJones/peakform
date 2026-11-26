@@ -10,21 +10,23 @@ no extra password.
 3. In the dashboard, go to **Account** and paste the key. It is verified with Garmin, then
    stored encrypted (AES-256-GCM). The first sync backfills `backfill_days` of history.
 
-## Activity reviews by Claude (optional)
+## Activity reviews by Claude or GPT (optional)
 
-Sport activities (not walks) can be reviewed by Claude. Each user brings their own Anthropic API
-key; reviews are billed to its credit balance, a few cents each. A Claude Pro subscription does
-not include API credits, and subscription logins cannot be used for this.
+Sport activities (not walks) can be reviewed by Claude (Anthropic) or GPT (OpenAI). Each user
+brings their own API key from one of them; reviews are billed to its credit, a few cents each.
+A Claude Pro/Max or ChatGPT Plus/Pro subscription does not include API credit, and subscription
+logins cannot be used for this.
 
-1. In the [Claude Console](https://platform.claude.com/settings/keys), create an API key and add
-   credits under **Billing**.
-2. In **Account → Activity reviews by Claude**, paste the key. It is verified with Anthropic and
-   stored encrypted. Add your sex and birth date (Garmin does not share them), and optionally
-   goals or other context for every review.
+1. Create an API key and add credit under **Billing**: in the
+   [Claude Console](https://platform.claude.com/settings/keys) for Claude, or on the
+   [OpenAI platform](https://platform.openai.com/api-keys) for GPT.
+2. In **Account → Activity reviews**, choose the provider and paste the key. It is verified with
+   the provider and stored encrypted. Add your sex and birth date (Garmin does not share them),
+   and optionally goals or other context for every review.
 
 From then on, press **Review now** on an activity's page. Rate the activity first (how it felt,
-what was planned, quick notes like heavy legs or heat): Claude takes that into account. When the
-credit is used up, the app shows a notice; top it up and start the review again.
+what was planned, quick notes like heavy legs or heat): the review takes that into account. When
+the credit is used up, the app shows a notice; top it up and start the review again.
 
 ## Master key
 
