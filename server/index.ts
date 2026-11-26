@@ -117,8 +117,8 @@ api.get("/me", (c) => {
   });
 });
 
-/** View settings (start page, date range, language, day view), so they follow the account across browsers. */
-const PREF_KEYS = new Set(["startTab", "range", "lang", "dayView"]);
+/** View settings (start page, date range, language, day view, color theme), so they follow the account across browsers. */
+const PREF_KEYS = new Set(["startTab", "range", "lang", "dayView", "theme"]);
 
 api.put("/me/prefs", async (c) => {
   const uid = c.get("user").id;

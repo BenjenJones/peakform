@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.18.2 – Light or dark, your choice
+
+### Added
+
+- **Theme switch**: system, light or dark. Until now the app always followed the system setting.
+  The choice is saved with your account, like the language, and charts and maps switch along
+  with it.
+
+### Changed
+
+- **Your avatar at the top right** shows who is signed in: your initials on a color of their own.
+  It opens a menu with your account, language, theme and sign out. The Account tab and the
+  language selector left the top bar, so it stays on one line; the date range and sync stay.
+- **The VO2max tile says what its color means**: ▲ or ▼ with the change in 3 weeks, or "stable".
+  The color judges this trend, not the value itself.
+
+### Fixed
+
+- **VO2max showed red for a drop of less than 1 ml/kg/min**, which is within the normal scatter
+  of the estimate. A change now counts as rising or falling from 1 ml/kg/min in 3 weeks, the step
+  Garmin moves in too. The training status follows and switches between Productive, Maintaining
+  and Unproductive less often.
+- **In German, the controls at the top right dropped onto a second line.** The sync texts are
+  shorter now ("Stand 16:35 (ok)", "Synchronisieren"), and on wide screens the controls stay at
+  the top right: if space runs short, the tabs wrap instead and the sync status shortens, with the
+  full text in its tooltip.
+
 ## 0.18.1 – More realistic VO2max
 
 ### Fixed
