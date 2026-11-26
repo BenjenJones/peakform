@@ -50,7 +50,7 @@ export interface ActivityLite {
   loadSource: "garmin" | "trimp" | "none";
 }
 
-function hrBounds(uid: number) {
+export function hrBounds(uid: number) {
   const rhr = median(metricSeries(uid, "rhr", "0000-01-01", "9999-12-31").map((r) => r.value)) || 55;
   const zones = kvGet<{ maxHeartRateUsed?: number }[]>(uid, "single:hrZones");
   const zoneMax = Array.isArray(zones) ? zones.map((z) => z.maxHeartRateUsed).find((v) => typeof v === "number") : undefined;

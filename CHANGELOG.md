@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0 – Training status
+
+### Added
+
+- **Training status** on the Day page and at the top of Training, modelled on Garmin's:
+  Peaking, Productive, Maintaining, Strained, Unproductive, Overreaching, Recovery, Detraining.
+  It combines load (acute vs chronic), the fitness trend and recovery (HRV status, resting HR,
+  sleep). The card shows the reasons behind it and a strip with the status of every day, the
+  last 4 weeks on the Day page and the selected range on Training.
+- **Estimated VO2max** for the fitness trend, from pace or power relative to heart rate: runs of
+  10+ minutes and rides with a power meter of 20+ minutes at 70% of max HR or more. Garmin's own
+  VO2max is not available through its API, so this is PeakForm's estimate and can differ from the
+  watch.
+
 ## 0.17.0 – Reviews by Claude or GPT
 
 ### Added
