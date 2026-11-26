@@ -28,11 +28,11 @@ function readTokens(): Tokens {
 
 function useTokens() {
   const [t, setT] = useState(readTokens);
+  // theme.ts sets data-theme for the system setting as well as for a chosen theme.
   useEffect(() => {
-    const mq = matchMedia("(prefers-color-scheme: dark)");
-    const on = () => setT(readTokens());
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
+    const obs = new MutationObserver(() => setT(readTokens()));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
   }, []);
   return t;
 }

@@ -191,7 +191,7 @@ Shared building blocks:
 
 - **Data:** `api.ts` provides `api()`, `send()` and the `useApi()` hook. There is no global store; each page loads its own data. A 401 fires an event that returns to sign-in.
 - **Preferences:** `prefs.ts` stores start tab, range, language and day view with the account. `localStorage` only keeps a copy for the sign-in screen.
-- **Charts:** `Chart.tsx` wraps ECharts. Colors come from CSS variables and follow dark mode. Charts on a page share the crosshair through a group, and enlarged charts get zoom and a slider. Replay dots move every frame without rebuilding the chart. `Zoom.tsx` provides the large history chart behind a tile.
+- **Charts:** `Chart.tsx` wraps ECharts. Colors come from CSS variables and follow the theme: `theme.ts` sets `data-theme` on the root (system, light or dark; `index.html` sets it before the first paint), and charts re-read the variables when it changes. Charts on a page share the crosshair through a group, and enlarged charts get zoom and a slider. Replay dots move every frame without rebuilding the chart. `Zoom.tsx` provides the large history chart behind a tile.
 - **Tiles:** `TileViz.tsx` draws small SVG pictures per tile: line, bars, dots, diverging, band or ring. `status.ts` judges values against fixed ranges, goals or the user's own history.
 - **Map:** `RouteMap.tsx` with Leaflet and OpenStreetMap tiles. `routeLayers.ts` colors the route by pace, heart rate, cadence or grade.
 - **Language:** `i18n.tsx` holds all texts in English and German, typed by key, plus number and date formats.

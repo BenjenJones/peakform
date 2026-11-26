@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Me, type ReviewNotice, send } from "./api";
-import { detectLang, errorText, I18nProvider, type Key, type Lang, useI18n } from "./i18n";
+import { detectLang, errorText, I18nProvider, type Key, useI18n } from "./i18n";
 import logo from "./logo.svg";
 import { Account } from "./pages/Account";
 import { Activities } from "./pages/Activities";
@@ -13,6 +13,8 @@ import { Health } from "./pages/Health";
 import { Recovery } from "./pages/Recovery";
 import { Training } from "./pages/Training";
 import { clearPrefs, loadPrefs, prefGet, prefSet, startTab, TABS } from "./prefs";
+import { HeaderMenu } from "./HeaderMenu";
+import { loadTheme } from "./theme";
 
 // Hash routing: no server-side route knowledge needed behind the ingress proxy.
 
@@ -42,6 +44,9 @@ export function App() {
   );
 }
 
+/** Date ranges offered at the top right, in days. */
+const RANGES = [30, 90, 180, 365, 730];
+
 function Root() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const { lang, setLang } = useI18n();
@@ -53,6 +58,7 @@ function Root() {
   const loadMe = () =>
     api<Me>("me").then((m) => {
       loadPrefs(m.prefs);
+      loadTheme();
       const l = detectLang();
       if (l !== lang) setLang(l);
       setMe(m);
@@ -103,7 +109,7 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
     prefSet("range", String(n));
   };
 
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
   const active = TABS.find((id) => id === tab) ?? home;
   const props = { range, refreshKey, status };
 
@@ -115,7 +121,8 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
           PeakForm
         </h1>
         <nav className="tabs">
-          {TABS.map((id) => (
+          {/* Account sits in the avatar menu at the top right. */}
+          {TABS.filter((id) => id !== "account").map((id) => (
             <a key={id} href={`#/${id}`} className={active === id ? "active" : ""}>
               {t(`tab.${id}`)}
             </a>
@@ -123,17 +130,14 @@ function Dashboard({ me, reloadMe }: { me: Me; reloadMe: () => void }) {
         </nav>
         <div className="controls">
           <select value={range} onChange={(e) => setRangePersist(Number(e.target.value))} aria-label={t("range.label")}>
-            {[30, 90, 180, 365, 730].map((d) => (
+            {RANGES.map((d) => (
               <option key={d} value={d}>
                 {t("range.days", { n: d })}
               </option>
             ))}
           </select>
-          <select value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label={t("lang.label")}>
-            <option value="de">DE</option>
-            <option value="en">EN</option>
-          </select>
           <SyncChip status={status} refresh={() => pollRef.current()} />
+          <HeaderMenu me={me} active={active === "account"} onSignedOut={reloadMe} />
         </div>
       </header>
 
@@ -207,9 +211,9 @@ function SyncChip({ status, refresh }: { status: Status | null; refresh: () => P
           : t("sync.never");
   return (
     <>
-      <span className="chip" role="status">
+      <span className="chip sync-chip" role="status" title={text}>
         <span className={busy ? "dot pulse" : "dot"} style={{ background: color }} />
-        {text}
+        <span className="chip-text">{text}</span>
       </span>
       <button className="btn" disabled={busy || !status.configured} aria-busy={busy} onClick={start}>
         {busy && <span className="spinner" aria-hidden />}
