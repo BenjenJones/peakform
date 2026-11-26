@@ -38,8 +38,8 @@ const VO2_WINDOW_DAYS = 28;
 const VO2_MIN_EFFORTS = 2;
 /** Change of the estimate over this many days sets the fitness trend. */
 const TREND_DAYS = 21;
-/** ml/kg/min; smaller changes are noise. */
-const TREND_STEP = 0.5;
+/** ml/kg/min. Single sessions scatter by about ±2, so smaller changes of the median are noise; Garmin moves in whole steps too. */
+const TREND_STEP = 1;
 
 /**
  * Intensity the estimates are normalised to, as a share of heart rate reserve. Extrapolating

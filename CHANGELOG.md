@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.2 – Calmer VO2max trend
+
+### Fixed
+
+- **VO2max showed red for a drop of less than 1 ml/kg/min**, which is within the normal scatter
+  of the estimate. A change now counts as rising or falling from 1 ml/kg/min in 3 weeks, the step
+  Garmin moves in too. The training status follows and switches between Productive, Maintaining
+  and Unproductive less often.
+
+### Changed
+
+- **The VO2max tile says what its color means**: ▲ or ▼ with the change in 3 weeks, or "stable".
+  The color judges this trend, not the value itself.
+
 ## 0.18.1 – More realistic VO2max
 
 ### Fixed

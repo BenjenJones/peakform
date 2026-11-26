@@ -32,7 +32,13 @@ function factors(d: StatusDay, t: ReturnType<typeof useI18n>["t"]): { key: strin
       label: t("ts.f.vo2"),
       value: fmtNum(d.vo2max, 1),
       note: `${t(d.vo2Sport === "ride" ? "ts.vo2.ride" : "ts.vo2.run")} · ${
-        ch === null ? t("ts.vo2.noTrend") : t("ts.vo2.trend", { v: `${ch >= 0 ? "+" : "−"}${fmtNum(Math.abs(ch), 1)}` })
+        ch === null
+          ? t("ts.vo2.noTrend")
+          : // The dot judges this trend, not the value itself.
+            t(d.fitness === "flat" ? "ts.vo2.flat" : "ts.vo2.trend", {
+              v: `${ch >= 0 ? "+" : "−"}${fmtNum(Math.abs(ch), 1)}`,
+              a: d.fitness === "up" ? "▲" : "▼",
+            })
       }`,
       tone: d.fitness === "up" ? "good" : d.fitness === "down" ? "bad" : "neutral",
     });
