@@ -41,11 +41,24 @@ const TREND_DAYS = 21;
 /** ml/kg/min; smaller changes are noise. */
 const TREND_STEP = 0.5;
 
+/**
+ * Intensity the estimates are normalised to, as a share of heart rate reserve. Extrapolating
+ * from an easy run reads high: during exercise heart rate sits well above the resting value the
+ * line is drawn through. Closer to threshold the extrapolation is shorter and more reliable.
+ */
+const VO2_REF_HRR = 0.8;
+/** History the intensity correction is learnt from, and what it needs to be trusted. */
+const VO2_CAL_DAYS = 365;
+const VO2_CAL_MIN_EFFORTS = 15;
+const VO2_CAL_MIN_SD = 0.03;
+
 export interface Vo2Effort {
   activityId: number;
   date: string;
   sport: "run" | "ride";
   vo2max: number;
+  /** Share of heart rate reserve at the activity's average heart rate. */
+  hrr: number;
 }
 
 /**
@@ -53,8 +66,33 @@ export interface Vo2Effort {
  * by the share of the heart rate reserve used, as %HRR tracks %VO2 reserve (Swain 1997). Same
  * idea as Firstbeat's estimate, without its filtering of unsteady stretches: summary averages
  * only, so intervals and stops make it less exact.
+ *
+ * That alone rises the easier a session is. Per sport, the slope of estimate against intensity
+ * over the last year moves every estimate to what it would read at VO2_REF_HRR, so a block of
+ * easy runs does not show as gained fitness.
  */
 export function vo2Efforts(uid: number, from: string, to: string): Vo2Effort[] {
+  const calFrom = addDays(to, -VO2_CAL_DAYS);
+  const raw = rawVo2Efforts(uid, from < calFrom ? from : calFrom, to);
+  const slope = new Map<Vo2Effort["sport"], number>();
+  for (const sport of ["run", "ride"] as const) {
+    const cal = raw.filter((e) => e.sport === sport && e.date >= calFrom);
+    if (cal.length < VO2_CAL_MIN_EFFORTS) continue;
+    const xs = cal.map((e) => e.hrr);
+    const ys = cal.map((e) => e.vo2max);
+    if (sd(xs) < VO2_CAL_MIN_SD) continue;
+    const mx = mean(xs);
+    const my = mean(ys);
+    const b = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+    // Only ever a correction for the known bias, never a steep one from a few odd sessions.
+    slope.set(sport, Math.max(-60, Math.min(0, b)));
+  }
+  return raw
+    .filter((e) => e.date >= from)
+    .map((e) => ({ ...e, vo2max: Math.round((e.vo2max - (slope.get(e.sport) ?? 0) * (e.hrr - VO2_REF_HRR)) * 10) / 10 }));
+}
+
+function rawVo2Efforts(uid: number, from: string, to: string): Vo2Effort[] {
   const { rhr, maxHr } = hrBounds(uid);
   const weights = metricSeries(uid, "weight", "0000-01-01", to);
   const weightOn = (date: string) => weights.findLast((w) => w.date <= date)?.value ?? weights[0]?.value ?? null;
@@ -88,7 +126,7 @@ export function vo2Efforts(uid: number, from: string, to: string): Vo2Effort[] {
     const vo2max = 3.5 + (vo2 - 3.5) / hrr;
     // Outside human range: bad HR data, GPS glitch or a wrong max HR.
     if (vo2max < 15 || vo2max > 90) continue;
-    out.push({ activityId: r.id, date, sport, vo2max: Math.round(vo2max * 10) / 10 });
+    out.push({ activityId: r.id, date, sport, vo2max, hrr });
   }
   return out;
 }
