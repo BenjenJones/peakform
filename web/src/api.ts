@@ -100,12 +100,14 @@ export interface Review {
   updatedAt: string;
 }
 
-export type ReviewModel = "opus" | "sonnet" | "haiku";
+export type ReviewProvider = "anthropic" | "openai";
+export type ReviewModel = "opus" | "sonnet" | "haiku" | "astra" | "sol" | "luna";
 
 export interface ReviewSettings {
-  profile: { sex: "male" | "female" | null; birthDate: string | null; heightCm: number | null; goals: string; model: ReviewModel };
-  apiKey: { updatedAt: string } | null;
-  models: ReviewModel[];
+  profile: { sex: "male" | "female" | null; birthDate: string | null; heightCm: number | null; goals: string; provider: ReviewProvider; model: ReviewModel };
+  apiKeys: Record<ReviewProvider, { updatedAt: string } | null>;
+  models: Record<ReviewProvider, ReviewModel[]>;
+  defaultModels: Record<ReviewProvider, ReviewModel>;
   maxGoals: number;
 }
 
@@ -117,7 +119,8 @@ export interface BodyRef {
   ideal: number | null;
 }
 
-export interface ReviewNotice { code: "quota" | "auth"; message: string; at: string; activityId: number }
+/** `provider` is missing on notices stored before 0.17, which all came from Anthropic. */
+export interface ReviewNotice { code: "quota" | "auth"; provider?: ReviewProvider; message: string; at: string; activityId: number }
 
 export interface Readiness {
   score: number | null;

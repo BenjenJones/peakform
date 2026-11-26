@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.17.0 – Reviews by Claude or GPT
+
+### Added
+
+- **Activity reviews by GPT.** Under **Account → Activity reviews**, choose Anthropic (Claude) or
+  OpenAI (GPT) and paste your own API key for it. OpenAI offers GPT Astra, Sol (the default) and
+  Luna. As with Anthropic, the key is checked with OpenAI and stored encrypted, and reviews are
+  billed to its credit. A ChatGPT Plus or Pro subscription does not include API credit.
+
+### Changed
+
+- **One key per provider.** You can store keys for both; reviews use the provider you chose.
+  Saving a key switches reviews to that provider. Existing Anthropic keys and settings stay as
+  they are.
+- **Every tile has its ? explanation now.** On the Day page that adds min and max HR, sleep HR,
+  respiration, SpO2, sleep stress, weekly HRV, Body Battery low and drained, steps, distance,
+  floors, calories, the stress and sleep stage times, training load and fatigue. On an activity
+  it adds time, distance, average HR, average power and elevation.
+
 ## 0.16.0 – Move from Home Assistant to Docker
 
 ### Added

@@ -346,12 +346,12 @@ function ActivityDetail({ id }: { id: number }) {
         </p>
         {a.streams?.dist.some((v) => (v ?? 0) > 0) && <ComparePicker id={id} />}
         <div className="tiles">
-          <Tile icon="time" label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} />
-          {s.distance ? <Tile icon="distance" label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" /> : null}
-          {s.averageHR ? <Tile icon="hr" label={tr("activities.avgHr")} value={fmtNum(s.averageHR)} unit="bpm" /> : null}
-          {s.avgPower ? <Tile icon="power" label={tr("activities.avgPower")} value={fmtNum(s.avgPower)} unit="W" /> : null}
+          <Tile icon="time" label={tr("activities.time")} value={fmtDuration(s.movingDuration ?? s.duration ?? 0)} help="help.act_time" />
+          {s.distance ? <Tile icon="distance" label={tr("activities.distance")} value={fmtNum(s.distance / 1000, 2)} unit="km" help="help.act_distance" /> : null}
+          {s.averageHR ? <Tile icon="hr" label={tr("activities.avgHr")} value={fmtNum(s.averageHR)} unit="bpm" help="help.act_hr" /> : null}
+          {s.avgPower ? <Tile icon="power" label={tr("activities.avgPower")} value={fmtNum(s.avgPower)} unit="W" help="help.act_power" /> : null}
           {s.normPower ? <Tile icon="np" label={tr("activities.np")} value={fmtNum(s.normPower)} unit="W" help="help.np" /> : null}
-          {s.elevationGain ? <Tile icon="elev" label={tr("activities.elev")} value={fmtNum(s.elevationGain)} unit="m" /> : null}
+          {s.elevationGain ? <Tile icon="elev" label={tr("activities.elev")} value={fmtNum(s.elevationGain)} unit="m" help="help.act_elev" /> : null}
           {cadence ? <Tile icon="cadence" label={tr("activities.cadence")} value={fmtNum(cadence)} unit={tr("activities.spm")} help="help.cadence" /> : null}
           {above ? (
             <Tile
@@ -603,7 +603,7 @@ function ScoreBadge({ score, big }: { score: number; big?: boolean }) {
   );
 }
 
-/** Claude's review of the activity; polls while it is queued or running. */
+/** The AI review of the activity (Claude or GPT); polls while it is queued or running. */
 function ReviewCard({ id, initial }: { id: number; initial: Review | null }) {
   const { t } = useI18n();
   const [r, setR] = useState(initial);

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type HrLimits as HrLimitsData, karvonen, type Me, type ReviewModel, type ReviewSettings, send, useApi } from "../api";
+import { type HrLimits as HrLimitsData, karvonen, type Me, type ReviewModel, type ReviewProvider, type ReviewSettings, send, useApi } from "../api";
 import { errorText, fmtDate, useI18n } from "../i18n";
 import { prefSet, startTab, type Tab, TABS } from "../prefs";
 
@@ -86,7 +86,12 @@ function GarminKey({ me, onChange }: { me: Me; onChange: () => void }) {
   );
 }
 
-/** Anthropic API key, the athlete data Garmin does not share (sex, birth date, height) and the extra prompt. */
+const KEY_PAGES: Record<ReviewProvider, string> = {
+  anthropic: "https://platform.claude.com/settings/keys",
+  openai: "https://platform.openai.com/api-keys",
+};
+
+/** API key (Anthropic or OpenAI), the athlete data Garmin does not share (sex, birth date, height) and the extra prompt. */
 function ReviewSetup() {
   const { t } = useI18n();
   const [reload, setReload] = useState(0);
@@ -97,6 +102,7 @@ function ReviewSetup() {
   const [birthDate, setBirthDate] = useState("");
   const [height, setHeight] = useState("");
   const [goals, setGoals] = useState("");
+  const [provider, setProvider] = useState<ReviewProvider>("anthropic");
   const [model, setModel] = useState<ReviewModel>("opus");
   const [tokenMsg, setTokenMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -106,18 +112,27 @@ function ReviewSetup() {
     setBirthDate(data.profile.birthDate ?? "");
     setHeight(data.profile.heightCm ? String(data.profile.heightCm) : "");
     setGoals(data.profile.goals);
+    setProvider(data.profile.provider);
     setModel(data.profile.model);
   }, [data]);
   if (!data) return null;
+  const apiKey = data.apiKeys[provider];
+
+  const pickProvider = (p: ReviewProvider) => {
+    setProvider(p);
+    setModel(p === data.profile.provider ? data.profile.model : data.defaultModels[p]);
+    setToken("");
+    setTokenMsg(null);
+  };
 
   const saveToken = async (e: FormEvent) => {
     e.preventDefault();
     setTokenMsg(null);
     setBusy(true);
     try {
-      await send("me/anthropic-key", "PUT", { apiKey: token });
+      await send(`me/api-key/${provider}`, "PUT", { apiKey: token });
       setToken("");
-      setTokenMsg({ ok: true, text: t("review.tokenSaved") });
+      setTokenMsg({ ok: true, text: t(`review.tokenSaved.${provider}`) });
       setReload((n) => n + 1);
     } catch (err) {
       setTokenMsg({ ok: false, text: errorText(t, err) });
@@ -126,15 +141,15 @@ function ReviewSetup() {
     }
   };
   const removeToken = async () => {
-    if (!confirm(t("review.tokenRemoveConfirm"))) return;
-    await send("me/anthropic-key", "DELETE");
+    if (!confirm(t(`review.tokenRemoveConfirm.${provider}`))) return;
+    await send(`me/api-key/${provider}`, "DELETE");
     setReload((n) => n + 1);
   };
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
     setMsg(null);
     try {
-      await send("me/review-settings", "PUT", { sex: sex || null, birthDate: birthDate || null, heightCm: height ? Number(height) : null, goals, model });
+      await send("me/review-settings", "PUT", { sex: sex || null, birthDate: birthDate || null, heightCm: height ? Number(height) : null, goals, provider, model });
       setMsg({ ok: true, text: t("review.profileSaved") });
     } catch (err) {
       setMsg({ ok: false, text: errorText(t, err) });
@@ -147,31 +162,42 @@ function ReviewSetup() {
       <p className="sub">{t("review.setupSub")}</p>
       <div className="grid">
         <form className="span-6" onSubmit={saveToken}>
-          <h2>{t("review.tokenTitle")}</h2>
+          <h2>{t("review.provider")}</h2>
+          <div className="controls" role="radiogroup" style={{ marginBottom: 10 }}>
+            {(["anthropic", "openai"] as const).map((p) => (
+              <label key={p} className="controls">
+                <input type="radio" name="review-provider" checked={provider === p} onChange={() => pickProvider(p)} />
+                {t(`review.provider.${p}`)}
+                {data.apiKeys[p] && <span className="dot" style={{ background: "var(--good)" }} title={t("review.tokenStored", { date: fmtDate(data.apiKeys[p]!.updatedAt) })} />}
+              </label>
+            ))}
+          </div>
+          {provider !== data.profile.provider && <p className="sub">{t("review.providerPending")}</p>}
+          <h2>{t(`review.tokenTitle.${provider}`)}</h2>
           <p className="sub">
-            {t("review.tokenHelp")}{" "}
-            <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">
-              platform.claude.com
+            {t(`review.tokenHelp.${provider}`)}{" "}
+            <a href={KEY_PAGES[provider]} target="_blank" rel="noreferrer">
+              {new URL(KEY_PAGES[provider]).host}
             </a>
           </p>
           <p>
-            <span className="dot" style={{ background: data.apiKey ? "var(--good)" : "var(--muted)" }} />{" "}
-            {data.apiKey ? t("review.tokenStored", { date: fmtDate(data.apiKey.updatedAt) }) : t("review.tokenNone")}
+            <span className="dot" style={{ background: apiKey ? "var(--good)" : "var(--muted)" }} />{" "}
+            {apiKey ? t("review.tokenStored", { date: fmtDate(apiKey.updatedAt) }) : t("review.tokenNone")}
           </p>
           <input
             className="input"
             type="password"
             autoComplete="off"
-            placeholder={data.apiKey ? t("review.tokenPlaceholderReplace") : t("review.tokenPlaceholderNew")}
+            placeholder={apiKey ? t("review.tokenPlaceholderReplace") : t(`review.tokenPlaceholderNew.${provider}`)}
             value={token}
             onChange={(e) => setToken(e.target.value)}
           />
           {tokenMsg && <div className={tokenMsg.ok ? "success" : "error"}>{tokenMsg.text}</div>}
           <div className="controls" style={{ marginTop: 8 }}>
             <button className="btn primary" disabled={busy || !token.trim()}>
-              {busy ? t("review.tokenChecking") : data.apiKey ? t("account.keyReplace") : t("review.tokenSave")}
+              {busy ? t(`review.tokenChecking.${provider}`) : apiKey ? t("account.keyReplace") : t("review.tokenSave")}
             </button>
-            {data.apiKey && (
+            {apiKey && (
               <button type="button" className="btn" onClick={removeToken}>
                 {t("account.keyRemove")}
               </button>
@@ -211,7 +237,7 @@ function ReviewSetup() {
             <label className="controls">
               {t("review.model")}
               <select value={model} onChange={(e) => setModel(e.target.value as ReviewModel)}>
-                {data.models.map((m) => (
+                {data.models[provider].map((m) => (
                   <option key={m} value={m}>
                     {t(`review.model.${m}`)}
                   </option>

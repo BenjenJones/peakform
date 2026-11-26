@@ -35,14 +35,18 @@ import { feelingMap, getFeedback, parseFeedback, setFeedback } from "./feedback.
 import { dayHeartRate, night } from "./night.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
 import {
-  anthropicKeyInfo,
+  aiKeyInfo,
   clearReviewNotice,
-  deleteAnthropicKey,
+  DEFAULT_MODELS,
+  deleteAiKey,
   enqueueReview,
   getReview,
+  isProvider,
   isSportType,
   MAX_GOALS,
-  reencryptAnthropicKeys,
+  modelFor,
+  PROVIDERS,
+  reencryptAiKeys,
   resumeReviews,
   REVIEW_MODELS,
   reviewMap,
@@ -51,8 +55,8 @@ import {
   reviewQueueInfo,
   reviewsConfigured,
   setReviewProfile,
-  storeAnthropicKey,
-  verifyAnthropicKey,
+  storeAiKey,
+  verifyAiKey,
 } from "./review.js";
 import { enqueueSync, syncAll, syncState } from "./sync.js";
 import {
@@ -199,14 +203,15 @@ api.put("/me/hr-limits", async (c) => {
   return c.json({ ok: true });
 });
 
-// ---------- Activity reviews (Claude) ----------
+// ---------- Activity reviews (Claude or GPT) ----------
 
 api.get("/me/review-settings", (c) => {
   const uid = c.get("user").id;
   return c.json({
     profile: reviewProfile(uid),
-    apiKey: anthropicKeyInfo(uid), // never the key itself
+    apiKeys: Object.fromEntries(PROVIDERS.map((p) => [p, aiKeyInfo(uid, p)])), // never the keys themselves
     models: REVIEW_MODELS,
+    defaultModels: DEFAULT_MODELS,
     maxGoals: MAX_GOALS,
   });
 });
@@ -224,27 +229,36 @@ api.put("/me/review-settings", async (c) => {
   }
   const goals = typeof b.goals === "string" ? b.goals : "";
   if (goals.length > MAX_GOALS) return c.json({ error: `At most ${MAX_GOALS} characters`, code: "goals_too_long" }, 400);
-  const model = REVIEW_MODELS.find((m) => m === b.model) ?? "opus";
-  setReviewProfile(c.get("user").id, { sex, birthDate, heightCm: heightCm === null ? null : Math.round(heightCm), goals, model });
+  const provider = isProvider(b.provider) ? b.provider : "anthropic";
+  const model = modelFor(provider, b.model);
+  setReviewProfile(c.get("user").id, { sex, birthDate, heightCm: heightCm === null ? null : Math.round(heightCm), goals, provider, model });
   return c.json({ ok: true });
 });
 
-api.put("/me/anthropic-key", async (c) => {
+api.put("/me/api-key/:provider", async (c) => {
   const uid = c.get("user").id;
+  const provider = c.req.param("provider");
+  if (!isProvider(provider)) return c.json({ error: "not found" }, 404);
+  const name = provider === "anthropic" ? "Anthropic" : "OpenAI";
   const { apiKey } = await c.req.json<{ apiKey?: string }>();
   const key = String(apiKey ?? "").trim();
   if (!key || key.length > 1024 || /\s/.test(key)) return c.json({ error: "That does not look like an API key", code: "key_format" }, 400);
-  // Validate against Anthropic before storing anything.
-  const check = await verifyAnthropicKey(key);
-  if (check === "rejected") return c.json({ error: "Anthropic rejected this key", code: "anthropic_key_rejected" }, 400);
-  if (check === "unreachable") return c.json({ error: "Could not reach Anthropic to verify the key", code: "anthropic_key_unreachable" }, 502);
-  storeAnthropicKey(uid, key);
+  // Validate with the provider before storing anything.
+  const check = await verifyAiKey(provider, key);
+  if (check === "rejected") return c.json({ error: `${name} rejected this key`, code: `${provider}_key_rejected` }, 400);
+  if (check === "unreachable") return c.json({ error: `Could not reach ${name} to verify the key`, code: `${provider}_key_unreachable` }, 502);
+  storeAiKey(uid, provider, key);
+  // Storing a key means using it: reviews switch to this provider.
+  const profile = reviewProfile(uid);
+  if (profile.provider !== provider) setReviewProfile(uid, { ...profile, provider, model: modelFor(provider, null) });
   clearReviewNotice(uid);
   return c.json({ ok: true });
 });
 
-api.delete("/me/anthropic-key", (c) => {
-  deleteAnthropicKey(c.get("user").id);
+api.delete("/me/api-key/:provider", (c) => {
+  const provider = c.req.param("provider");
+  if (!isProvider(provider)) return c.json({ error: "not found" }, 404);
+  deleteAiKey(c.get("user").id, provider);
   return c.json({ ok: true });
 });
 
@@ -271,7 +285,7 @@ api.post("/activities/:id/review", (c) => {
   const row = db.prepare("SELECT type FROM activity WHERE user_id = ? AND id = ?").get(uid, id) as { type: string | null } | undefined;
   if (!row) return c.json({ error: "not found" }, 404);
   if (!isSportType(row.type)) return c.json({ error: "Only sport activities are reviewed", code: "review_not_sport" }, 400);
-  if (!reviewsConfigured(uid)) return c.json({ error: "No Anthropic API key stored", code: "review_no_key" }, 400);
+  if (!reviewsConfigured(uid)) return c.json({ error: "No API key stored for reviews", code: "review_no_key" }, 400);
   const cur = getReview(uid, id);
   if (cur?.status === "queued" || cur?.status === "running") return c.json({ ok: true });
   enqueueReview(uid, id, "manual");
@@ -446,7 +460,7 @@ const indexHtml = (() => {
 app.get("*", (c) => c.html(indexHtml));
 
 reencryptCredentials();
-reencryptAnthropicKeys();
+reencryptAiKeys();
 migrateHrLimitsToHrr();
 resumeReviews();
 

@@ -1,7 +1,8 @@
-// AI review of sport activities through the Claude API. Every user brings their own Anthropic API
-// key from the Claude Console; reviews are billed to that key's organization.
+// AI review of sport activities. Every user brings their own API key, from Anthropic (Claude) or
+// OpenAI (GPT); reviews are billed to that key's organization.
 
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { activityStreams, decoupling, hrLimitFor, isRun, listActivities, readiness, trainingLoad, withStepCadence } from "./analytics.js";
 import { unpackJson } from "./codec.js";
 import { decryptSecret, encryptSecret, needsReencrypt } from "./crypto.js";
@@ -39,16 +40,39 @@ export interface ReviewProfile {
   heightCm: number | null;
   /** Free text added to the system prompt: goals, injuries, context. */
   goals: string;
+  provider: Provider;
   model: ReviewModel;
 }
 
-export const REVIEW_MODELS = ["opus", "sonnet", "haiku"] as const;
-export type ReviewModel = (typeof REVIEW_MODELS)[number];
-const MODEL_IDS: Record<ReviewModel, string> = { opus: "claude-opus-5-5", sonnet: "claude-sonnet-5-5", haiku: "claude-haiku-5-5" };
+export const PROVIDERS = ["anthropic", "openai"] as const;
+export type Provider = (typeof PROVIDERS)[number];
+export const isProvider = (v: unknown): v is Provider => PROVIDERS.includes(v as Provider);
+
+/** Model tiers per provider, most thorough first. */
+export const REVIEW_MODELS = {
+  anthropic: ["opus", "sonnet", "haiku"],
+  openai: ["astra", "sol", "luna"],
+} as const satisfies Record<Provider, readonly string[]>;
+export type ReviewModel = (typeof REVIEW_MODELS)[Provider][number];
+const MODEL_IDS: Record<ReviewModel, string> = {
+  opus: "claude-opus-5-5",
+  sonnet: "claude-sonnet-5-5",
+  haiku: "claude-haiku-5-5",
+  astra: "gpt-6.2-astra",
+  sol: "gpt-6.2-sol",
+  luna: "gpt-6-luna",
+};
+/** Opus for Anthropic (as before 0.17); Sol for OpenAI, as Astra costs about twice as much as Opus. */
+export const DEFAULT_MODELS: Record<Provider, ReviewModel> = { anthropic: "opus", openai: "sol" };
 export const MAX_GOALS = 4000;
+
+/** A model of `provider`, or that provider's default. */
+export const modelFor = (provider: Provider, model: unknown): ReviewModel =>
+  (REVIEW_MODELS[provider] as readonly string[]).includes(model as string) ? (model as ReviewModel) : DEFAULT_MODELS[provider];
 
 export interface ReviewNotice {
   code: "quota" | "auth";
+  provider: Provider;
   message: string;
   at: string;
   activityId: number;
@@ -64,57 +88,64 @@ const addDays = (day: string, n: number) => {
 
 export function reviewProfile(uid: number): ReviewProfile {
   const p = kvGet<Partial<ReviewProfile>>(uid, "reviewProfile") ?? {};
-  const model = REVIEW_MODELS.find((m) => m === p.model) ?? "opus";
-  return { sex: p.sex ?? null, birthDate: p.birthDate ?? null, heightCm: p.heightCm ?? null, goals: p.goals ?? "", model };
+  // Profiles from before 0.17 have no provider: they were all Anthropic.
+  const provider = isProvider(p.provider) ? p.provider : "anthropic";
+  return { sex: p.sex ?? null, birthDate: p.birthDate ?? null, heightCm: p.heightCm ?? null, goals: p.goals ?? "", provider, model: modelFor(provider, p.model) };
 }
 
 export const setReviewProfile = (uid: number, p: ReviewProfile) => kvSet(uid, "reviewProfile", p);
 
-// ---------- Anthropic API key (encrypted at rest, like the Garmin key) ----------
+// ---------- API keys (encrypted at rest, like the Garmin key), one per provider ----------
 
-const KV_KEY = "anthropicKey";
-const keyContext = (uid: number) => `anthropic-api-key:user:${uid}`;
+const KV_KEYS: Record<Provider, string> = { anthropic: "anthropicKey", openai: "openaiKey" };
+const keyContext = (provider: Provider, uid: number) => `${provider}-api-key:user:${uid}`;
 interface StoredKey { ciphertext: string; updatedAt: string }
 
-export function storeAnthropicKey(uid: number, key: string) {
-  kvSet(uid, KV_KEY, { ciphertext: encryptSecret(key, keyContext(uid)), updatedAt: now() } satisfies StoredKey);
+export function storeAiKey(uid: number, provider: Provider, key: string) {
+  kvSet(uid, KV_KEYS[provider], { ciphertext: encryptSecret(key, keyContext(provider, uid)), updatedAt: now() } satisfies StoredKey);
 }
 
-export const deleteAnthropicKey = (uid: number) => db.prepare("DELETE FROM user_kv WHERE user_id = ? AND key = ?").run(uid, KV_KEY);
+export const deleteAiKey = (uid: number, provider: Provider) => db.prepare("DELETE FROM user_kv WHERE user_id = ? AND key = ?").run(uid, KV_KEYS[provider]);
 
-export const anthropicKeyInfo = (uid: number) => {
-  const t = kvGet<StoredKey>(uid, KV_KEY);
+export const aiKeyInfo = (uid: number, provider: Provider) => {
+  const t = kvGet<StoredKey>(uid, KV_KEYS[provider]);
   return t ? { updatedAt: t.updatedAt } : null;
 };
 
-function loadAnthropicKey(uid: number): string | null {
-  const t = kvGet<StoredKey>(uid, KV_KEY);
-  return t ? decryptSecret(t.ciphertext, keyContext(uid)) : null;
+function loadAiKey(uid: number, provider: Provider): string | null {
+  const t = kvGet<StoredKey>(uid, KV_KEYS[provider]);
+  return t ? decryptSecret(t.ciphertext, keyContext(provider, uid)) : null;
 }
 
 /** After a master-key rotation; mirrors users.reencryptCredentials. */
-export function reencryptAnthropicKeys() {
-  const rows = db.prepare("SELECT user_id FROM user_kv WHERE key = ?").all(KV_KEY) as { user_id: number }[];
-  for (const { user_id } of rows) {
-    const t = kvGet<StoredKey>(user_id, KV_KEY)!;
-    if (!needsReencrypt(t.ciphertext)) continue;
-    try {
-      kvSet(user_id, KV_KEY, { ...t, ciphertext: encryptSecret(decryptSecret(t.ciphertext, keyContext(user_id)), keyContext(user_id)) });
-    } catch (e) {
-      console.error(`Cannot decrypt Anthropic API key of user ${user_id}: ${(e as Error).message}`);
+export function reencryptAiKeys() {
+  for (const provider of PROVIDERS) {
+    const rows = db.prepare("SELECT user_id FROM user_kv WHERE key = ?").all(KV_KEYS[provider]) as { user_id: number }[];
+    for (const { user_id } of rows) {
+      const t = kvGet<StoredKey>(user_id, KV_KEYS[provider])!;
+      if (!needsReencrypt(t.ciphertext)) continue;
+      const ctx = keyContext(provider, user_id);
+      try {
+        kvSet(user_id, KV_KEYS[provider], { ...t, ciphertext: encryptSecret(decryptSecret(t.ciphertext, ctx), ctx) });
+      } catch (e) {
+        console.error(`Cannot decrypt ${provider} API key of user ${user_id}: ${(e as Error).message}`);
+      }
     }
   }
 }
 
-export const reviewsConfigured = (uid: number) => anthropicKeyInfo(uid) !== null;
+/** Reviews run with the key of the provider chosen in the profile. */
+export const reviewsConfigured = (uid: number) => aiKeyInfo(uid, reviewProfile(uid).provider) !== null;
 
-/** Checks a key before storing it; listing models is free. */
-export async function verifyAnthropicKey(key: string): Promise<"ok" | "rejected" | "unreachable"> {
+/** Checks a key before storing it; listing models is free with both providers. */
+export async function verifyAiKey(provider: Provider, key: string): Promise<"ok" | "rejected" | "unreachable"> {
   try {
-    await new Anthropic({ apiKey: key, maxRetries: 1, timeout: 20_000 }).models.list({ limit: 1 });
+    if (provider === "anthropic") await new Anthropic({ apiKey: key, maxRetries: 1, timeout: 20_000 }).models.list({ limit: 1 });
+    else await new OpenAI({ apiKey: key, maxRetries: 1, timeout: 20_000 }).models.list();
     return "ok";
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return "rejected";
+    if (e instanceof OpenAI.AuthenticationError || e instanceof OpenAI.PermissionDeniedError) return "rejected";
     return "unreachable";
   }
 }
@@ -205,7 +236,7 @@ async function reviewOne(uid: number, id: number) {
     const input = buildInput(uid, id);
     if (!input) return void setRow("error", { error: "Activity not found" });
     const profile = reviewProfile(uid);
-    const out = await callClaude(uid, input.prompt, systemPrompt(input.lang, profile.goals), profile.model);
+    const out = await callModel(uid, input.prompt, systemPrompt(input.lang, profile.goals), profile.provider, profile.model);
     if (out.ok) {
       setRow("done", { review: JSON.stringify(out.result), model: out.model });
       if (reviewNotice(uid)) clearReviewNotice(uid);
@@ -213,7 +244,7 @@ async function reviewOne(uid: number, id: number) {
     }
     setRow(out.code, { error: out.message });
     if (out.code === "quota" || out.code === "auth") {
-      kvSet(uid, "reviewNotice", { code: out.code, message: out.message, at: now(), activityId: id } satisfies ReviewNotice);
+      kvSet(uid, "reviewNotice", { code: out.code, provider: profile.provider, message: out.message, at: now(), activityId: id } satisfies ReviewNotice);
       // The rest of this user's queue would fail the same way: park it until the next attempt.
       for (let i = queue.length - 1; i >= 0; i--) {
         if (queue[i].uid !== uid) continue;
@@ -412,11 +443,31 @@ export function buildInput(uid: number, id: number) {
   return { prompt, lang: reviewLang(uid) };
 }
 
-// ---------- Claude API ----------
+// ---------- Model APIs ----------
 
-type ClaudeOutcome =
+type ReviewOutcome =
   | { ok: true; result: ReviewResult; model: string }
   | { ok: false; code: "quota" | "auth" | "error"; message: string };
+
+function callModel(uid: number, prompt: string, system: string, provider: Provider, model: ReviewModel): Promise<ReviewOutcome> {
+  const apiKey = loadAiKey(uid, provider);
+  if (!apiKey) return Promise.resolve({ ok: false, code: "auth", message: `No ${provider === "anthropic" ? "Anthropic" : "OpenAI"} API key stored` });
+  return provider === "anthropic" ? callClaude(apiKey, prompt, system, model) : callOpenAI(apiKey, prompt, system, model);
+}
+
+/** The schema guarantees the shape; clamp and coerce anyway, the result is shown as is. */
+function cleanResult(text: string): ReviewResult {
+  const r = JSON.parse(text) as ReviewResult;
+  return {
+    score: Math.min(10, Math.max(1, Math.round(Number(r.score) || 0))),
+    headline: String(r.headline ?? ""),
+    summary: String(r.summary ?? ""),
+    positives: (r.positives ?? []).map(String),
+    improvements: (r.improvements ?? []).map(String),
+    recovery: String(r.recovery ?? ""),
+    nextSession: String(r.nextSession ?? ""),
+  };
+}
 
 /**
  * Out of credit: a `billing_error`, the organization's monthly spend limit, or (older wording of
@@ -426,9 +477,7 @@ function isOutOfCredit(e: InstanceType<typeof Anthropic.APIError>) {
   return e.type === "billing_error" || e.errorCode === "enforced_spend_limit_reached" || (e.status === 400 && /credit balance/i.test(e.apiMessage ?? ""));
 }
 
-async function callClaude(uid: number, prompt: string, system: string, model: ReviewModel): Promise<ClaudeOutcome> {
-  const apiKey = loadAnthropicKey(uid);
-  if (!apiKey) return { ok: false, code: "auth", message: "No Anthropic API key stored" };
+async function callClaude(apiKey: string, prompt: string, system: string, model: ReviewModel): Promise<ReviewOutcome> {
   const client = new Anthropic({ apiKey, timeout: 5 * 60_000 });
   try {
     const response = await client.messages.create({
@@ -441,25 +490,39 @@ async function callClaude(uid: number, prompt: string, system: string, model: Re
     if (response.stop_reason === "refusal") return { ok: false, code: "error", message: "Claude declined to review this activity" };
     if (response.stop_reason === "max_tokens") return { ok: false, code: "error", message: "The review was cut off" };
     const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    const r = JSON.parse(text) as ReviewResult;
-    return {
-      ok: true,
-      model: response.model,
-      result: {
-        score: Math.min(10, Math.max(1, Math.round(Number(r.score) || 0))),
-        headline: String(r.headline ?? ""),
-        summary: String(r.summary ?? ""),
-        positives: (r.positives ?? []).map(String),
-        improvements: (r.improvements ?? []).map(String),
-        recovery: String(r.recovery ?? ""),
-        nextSession: String(r.nextSession ?? ""),
-      },
-    };
+    return { ok: true, model: response.model, result: cleanResult(text) };
   } catch (e) {
     if (e instanceof Anthropic.APIError) {
       const message = (e.apiMessage ?? e.message).slice(0, 500);
       if (isOutOfCredit(e)) return { ok: false, code: "quota", message };
       if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) return { ok: false, code: "auth", message };
+      return { ok: false, code: "error", message };
+    }
+    return { ok: false, code: "error", message: (e as Error).message.slice(0, 500) };
+  }
+}
+
+async function callOpenAI(apiKey: string, prompt: string, system: string, model: ReviewModel): Promise<ReviewOutcome> {
+  const client = new OpenAI({ apiKey, timeout: 5 * 60_000 });
+  try {
+    const response = await client.responses.create({
+      model: MODEL_IDS[model],
+      instructions: system,
+      input: prompt,
+      max_output_tokens: 16000,
+      store: false,
+      text: { format: { type: "json_schema", name: "activity_review", schema: REVIEW_SCHEMA, strict: true } },
+    });
+    const refused = response.output.some((o) => o.type === "message" && o.content.some((c) => c.type === "refusal"));
+    if (refused) return { ok: false, code: "error", message: "The model declined to review this activity" };
+    if (response.status === "incomplete") return { ok: false, code: "error", message: "The review was cut off" };
+    return { ok: true, model: response.model, result: cleanResult(response.output_text) };
+  } catch (e) {
+    if (e instanceof OpenAI.APIError) {
+      const message = e.message.slice(0, 500);
+      // An empty prepaid balance or a reached budget comes back as 429 insufficient_quota, not as a rate limit.
+      if (e.code === "insufficient_quota") return { ok: false, code: "quota", message };
+      if (e instanceof OpenAI.AuthenticationError || e instanceof OpenAI.PermissionDeniedError) return { ok: false, code: "auth", message };
       return { ok: false, code: "error", message };
     }
     return { ok: false, code: "error", message: (e as Error).message.slice(0, 500) };

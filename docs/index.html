@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PeakForm for Garmin – recovery and training analytics you host yourself</title>
+<meta name="description" content="Open-source, self-hosted health, recovery and training analytics on top of the Garmin Connect Personal API: readiness score, CTL/ATL/TSB, HRV, sleep, FIT file analysis, optional activity reviews by Claude or GPT. Home Assistant app or Docker.">
+<meta name="keywords" content="Garmin, Garmin Connect, Personal API, training load, CTL ATL TSB, HRV, readiness, recovery, FIT file, self-hosted, Home Assistant app, Docker, open source">
+<link rel="canonical" href="https://benjenjones.github.io/peakform/">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#2a78d6">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PeakForm for Garmin">
+<meta property="og:title" content="PeakForm for Garmin – recovery and training analytics you host yourself">
+<meta property="og:description" content="Readiness score, training load, HRV and sleep trends and detailed activity analysis from your Garmin data. Runs on your own server.">
+<meta property="og:url" content="https://benjenjones.github.io/peakform/">
+<meta property="og:image" content="https://benjenjones.github.io/peakform/img/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://benjenjones.github.io/peakform/img/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "PeakForm for Garmin",
+  "applicationCategory": "HealthApplication",
+  "operatingSystem": "Linux, Home Assistant OS, Docker",
+  "description": "Open-source, self-hosted health, recovery and training analytics on top of the Garmin Connect Personal API.",
+  "url": "https://benjenjones.github.io/peakform/",
+  "downloadUrl": "https://github.com/BenjenJones/peakform",
+  "codeRepository": "https://github.com/BenjenJones/peakform",
+  "license": "https://opensource.org/licenses/MIT",
+  "inLanguage": ["en", "de"],
+  "image": "https://benjenjones.github.io/peakform/img/social-preview.png",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+}
+</script>
+<style>
+:root {
+  color-scheme: light dark;
+  --page: #f9f9f7;
+  --surface: #ffffff;
+  --sunk: #f0efec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --border: rgba(11, 11, 11, 0.1);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --code: #1a1a19;
+  --code-ink: #f0efec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --sunk: #141413;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --border: rgba(255, 255, 255, 0.1);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s4: #c98500;
+    --code: #000;
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--s1); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font: 0.9em ui-monospace, "SF Mono", Consolas, monospace; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* nav */
+nav.top {
+  position: sticky; top: 0; z-index: 10;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--page) 80%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+nav.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; color: var(--ink); letter-spacing: -0.01em; }
+.brand:hover { text-decoration: none; }
+.brand img { width: 28px; height: 28px; }
+nav.top .links { display: flex; gap: 20px; margin-left: auto; font-size: 15px; }
+nav.top .links a { color: var(--ink-2); }
+nav.top .links a:hover { color: var(--ink); text-decoration: none; }
+@media (max-width: 640px) { nav.top .links a:not(.gh) { display: none; } }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px;
+  border: 1px solid var(--border); color: var(--ink); background: var(--surface);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.btn:hover { text-decoration: none; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+.btn.primary { background: var(--s1); border-color: transparent; color: #fff; }
+.btn svg { width: 18px; height: 18px; }
+
+/* hero */
+.hero { padding: 72px 0 56px; display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+@media (max-width: 900px) { .hero { grid-template-columns: 1fr; padding-top: 48px; } }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink-2);
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: 99px; background: var(--surface);
+}
+.eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--s3); }
+h1 { font-size: clamp(38px, 5.4vw, 60px); line-height: 1.05; letter-spacing: -0.035em; margin: 20px 0 18px; font-weight: 750; }
+h1 em { font-style: normal; color: var(--s1); }
+.lede { font-size: 19px; color: var(--ink-2); max-width: 34em; margin: 0 0 28px; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.fine { margin-top: 18px; font-size: 14px; color: var(--muted); }
+
+/* mock dashboard */
+.mock {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  padding: 18px; box-shadow: 0 24px 60px -20px rgba(0,0,0,.18);
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+}
+.tile { background: var(--sunk); border-radius: 12px; padding: 12px 14px; }
+.tile .k { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.tile .v { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.tile .v small { font-size: 13px; color: var(--muted); font-weight: 500; margin-left: 2px; }
+.tile .d { font-size: 12px; color: var(--s3); font-weight: 600; }
+.tile.wide { grid-column: 1 / -1; }
+.tile svg { display: block; width: 100%; height: auto; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.ring { display: flex; align-items: center; gap: 12px; }
+.ring svg { width: 54px; height: 54px; flex: none; }
+
+/* sections */
+section { padding: 72px 0; }
+section.alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+h2 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -0.025em; line-height: 1.15; margin: 0 0 12px; }
+.sub { color: var(--ink-2); font-size: 18px; max-width: 40em; margin: 0 0 40px; }
+
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--page); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+section:not(.alt) .card { background: var(--surface); }
+.card .ic { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px; }
+.card .ic svg { width: 20px; height: 20px; }
+.card h3 { margin: 0 0 6px; font-size: 17px; letter-spacing: -0.01em; }
+.card p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+/* pipeline */
+.flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+.flow .step { flex: 1 1 150px; background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 16px; position: relative; }
+.flow .arrow { flex: 0 0 28px; display: grid; place-items: center; color: var(--muted); }
+@media (max-width: 800px) { .flow { flex-direction: column; } .flow .arrow { transform: rotate(90deg); height: 28px; } }
+.flow .n { font-size: 12px; font-weight: 700; color: var(--s1); letter-spacing: .05em; }
+.flow h4 { margin: 4px 0 4px; font-size: 16px; }
+.flow p { margin: 0; font-size: 14px; color: var(--ink-2); }
+
+/* install */
+.install { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 860px) { .install { grid-template-columns: 1fr; } }
+.install .card { padding: 26px; display: flex; flex-direction: column; }
+.install ol { margin: 10px 0 18px; padding-left: 20px; color: var(--ink-2); font-size: 15px; }
+.install li { margin-bottom: 6px; }
+pre {
+  background: var(--code); color: var(--code-ink); border-radius: 10px;
+  padding: 14px 16px; overflow-x: auto; font-size: 13.5px; line-height: 1.55; margin: 0 0 16px;
+}
+pre .c { color: #898781; }
+.install .btn { align-self: flex-start; margin-top: auto; }
+
+/* security */
+.sec { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--page); }
+@media (max-width: 700px) { .sec { grid-template-columns: 1fr; } }
+.sec div { padding: 20px 22px; border-bottom: 1px solid var(--border); }
+.sec div:nth-child(odd) { border-right: 1px solid var(--border); }
+@media (max-width: 700px) { .sec div:nth-child(odd) { border-right: 0; } }
+.sec b { display: block; margin-bottom: 4px; }
+.sec span { color: var(--ink-2); font-size: 15px; }
+
+/* claude */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+.review { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; }
+.review .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+.review .hd b { font-size: 16px; }
+.review .hd span { color: var(--muted); font-size: 13px; }
+.review p { margin: 0 0 10px; color: var(--ink-2); font-size: 15px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--sunk); color: var(--ink-2); }
+ul.ticks { list-style: none; padding: 0; margin: 0 0 24px; }
+ul.ticks li { padding-left: 28px; position: relative; margin-bottom: 10px; color: var(--ink-2); }
+ul.ticks li::before { content: ""; position: absolute; left: 0; top: 6px; width: 16px; height: 16px; border-radius: 50%; background: var(--s3); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm3.7 6.2-4.2 4.3a.8.8 0 0 1-1.1 0L4.3 8.4a.8.8 0 1 1 1.1-1.1l1.5 1.5 3.7-3.7a.8.8 0 1 1 1.1 1.1Z'/%3E%3C/svg%3E") center / contain no-repeat; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm3.7 6.2-4.2 4.3a.8.8 0 0 1-1.1 0L4.3 8.4a.8.8 0 1 1 1.1-1.1l1.5 1.5 3.7-3.7a.8.8 0 1 1 1.1 1.1Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+
+/* cta + footer */
+.final { text-align: center; padding: 88px 0; }
+.final .ctas { justify-content: center; }
+details { background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; margin-bottom: 10px; }
+summary { cursor: pointer; font-weight: 600; }
+details p { color: var(--ink-2); margin: 10px 0 0; font-size: 15px; }
+footer { border-top: 1px solid var(--border); padding: 28px 0 40px; color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
+footer p { margin: 0; max-width: 46em; }
+footer a { color: var(--ink-2); }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="img/icon.svg" alt="">PeakForm</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#security">Security</a>
+      <a class="gh" href="https://github.com/BenjenJones/peakform">GitHub →</a>
+    </div>
+  </div>
+</nav>
+
+<header class="wrap hero">
+  <div>
+    <span class="eyebrow"><span class="dot"></span>Open source · MIT · self-hosted</span>
+    <h1>Know when to push and <em>when to rest.</em></h1>
+    <p class="lede">PeakForm turns your Garmin data into a readiness score, training load, recovery trends and
+      activity breakdowns. It runs on your own server, as a Home Assistant app or a Docker container,
+      and your data stays there.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#install">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/></svg>
+        Install
+      </a>
+      <a class="btn" href="https://github.com/BenjenJones/peakform">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <p class="fine">Built on the Garmin Connect Personal API. Bring your own Garmin API key.</p>
+  </div>
+
+  <div class="mock" aria-label="Illustration of the PeakForm dashboard">
+    <div class="tile">
+      <div class="k">Readiness</div>
+      <div class="ring">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="var(--grid)" stroke-width="4"/><circle cx="18" cy="18" r="15" fill="none" stroke="var(--s3)" stroke-width="4" stroke-linecap="round" stroke-dasharray="73 94.2" transform="rotate(-90 18 18)"/></svg>
+        <div class="v">78</div>
+      </div>
+    </div>
+    <div class="tile">
+      <div class="k">HRV night</div>
+      <div class="v">64<small>ms</small></div>
+      <div class="d">▲ above baseline</div>
+    </div>
+    <div class="tile">
+      <div class="k">Resting HR</div>
+      <div class="v">47<small>bpm</small></div>
+      <div class="d">▼ 2 vs. 60 days</div>
+    </div>
+    <div class="tile wide">
+      <div class="k">Fitness, fatigue, form</div>
+      <svg viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
+        <g stroke="var(--grid)" stroke-width="1"><line x1="0" y1="30" x2="400" y2="30"/><line x1="0" y1="60" x2="400" y2="60"/><line x1="0" y1="90" x2="400" y2="90"/></g>
+        <path d="M0 88 C40 84 70 80 100 74 S160 64 200 58 S270 50 300 46 S370 40 400 38" fill="none" stroke="var(--s1)" stroke-width="2.5"/>
+        <path d="M0 80 C30 60 50 92 80 70 S120 40 150 62 S190 30 220 44 S260 70 290 36 S340 52 360 40 S390 58 400 50" fill="none" stroke="var(--s2)" stroke-width="2"/>
+        <path d="M0 98 C30 106 50 90 80 100 S120 112 150 98 S190 114 220 104 S260 90 290 110 S340 96 360 102 S390 92 400 96" fill="none" stroke="var(--s4)" stroke-width="2" stroke-dasharray="4 4"/>
+      </svg>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Fitness (CTL)</span><span><i style="background:var(--s2)"></i>Fatigue (ATL)</span><span><i style="background:var(--s4)"></i>Form (TSB)</span></div>
+    </div>
+    <div class="tile wide">
+      <div class="k">Mean-max power</div>
+      <svg viewBox="0 0 400 70" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="mm" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--s1)" stop-opacity=".35"/><stop offset="1" stop-color="var(--s1)" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0 6 C20 14 40 26 80 34 S180 44 240 48 S340 54 400 56 L400 70 L0 70Z" fill="url(#mm)"/>
+        <path d="M0 6 C20 14 40 26 80 34 S180 44 240 48 S340 54 400 56" fill="none" stroke="var(--s1)" stroke-width="2.5"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<section class="alt" id="features">
+  <div class="wrap">
+    <h2>Everything your watch records, put to work.</h2>
+    <p class="sub">Garmin collects a lot of data. PeakForm puts it in one place and shows how sleep, stress,
+      recovery and training affect each other.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s3) 15%,transparent);color:var(--s3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Daily readiness</h3>
+        <p>A 0–100 score from HRV, resting HR, sleep and stress, measured against your own 60-day baseline,
+          not population averages.</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s1) 15%,transparent);color:var(--s1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 6-8 3 4"/></svg></div>
+        <h3>Training load</h3>
+        <p>Fitness, fatigue and form (CTL/ATL/TSB) and the acute:chronic ratio, from Garmin's training load
+          or Banister TRIMP.</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s2) 15%,transparent);color:var(--s2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+        <h3>Activities in detail</h3>
+        <p>Original FIT files decoded into per-second HR, power, speed, altitude and GPS. Route maps, laps,
+          replay and side-by-side comparison.</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s4) 18%,transparent);color:var(--s4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <h3>Performance curves</h3>
+        <p>Mean-max power and HR curves and aerobic decoupling, so you can see whether endurance is
+          actually improving.</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s1) 15%,transparent);color:var(--s1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+        <h3>Insights</h3>
+        <p>A lagged correlation matrix: does a late workout cost you HRV the next night? Does stress show up
+          in your sleep score?</p>
+      </div>
+      <div class="card">
+        <div class="ic" style="background:color-mix(in srgb,var(--s3) 15%,transparent);color:var(--s3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.5a5 5 0 0 1 4.5 5"/></svg></div>
+        <h3>Multi-user</h3>
+        <p>Everyone in the household brings their own Garmin key and sees only their own data. In Home
+          Assistant, sign-in happens through HA.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <p class="sub">PeakForm pulls your data from Garmin every hour and stores it in a single SQLite file on your server.</p>
+    <div class="flow">
+      <div class="step"><div class="n">01</div><h4>Garmin API</h4><p>Your personal API key, exchanged for a short-lived token</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">02</div><h4>Hourly sync</h4><p>Daily metrics and FIT files, every payload stored as received</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">03</div><h4>SQLite</h4><p>One file in <code>/data</code>, easy to back up and move</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">04</div><h4>Analytics</h4><p>Baselines, load models, curves, correlations</p></div>
+      <div class="arrow">→</div>
+      <div class="step"><div class="n">05</div><h4>Dashboard</h4><p>Fast web app, light and dark mode</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap split">
+    <div>
+      <h2>Activity reviews by Claude or GPT, if you want them.</h2>
+      <p class="sub" style="margin-bottom:24px">Optional. Rate how a session felt, then ask Claude or GPT for a review that
+        considers your recovery, training load and recent sessions.</p>
+      <ul class="ticks">
+        <li>Uses your own Anthropic or OpenAI API key, a few cents per review</li>
+        <li>Takes your rating, planned session type and notes into account</li>
+        <li>Add your own goals and context for every review</li>
+        <li>Nothing is sent until you press <b>Review now</b></li>
+      </ul>
+    </div>
+    <div class="review" aria-label="Example layout of an activity review">
+      <div class="hd"><b>Tempo run · 12.4 km</b><span>Example</span></div>
+      <p>The planned tempo block held well: pace stayed steady while heart rate drifted by only 3.1%,
+        a sign of good aerobic durability.</p>
+      <p>HRV has been above baseline for three nights and form is positive, so the extra intensity was
+        well timed. Keep tomorrow easy to absorb it.</p>
+      <div class="chips"><span class="chip">Felt: good</span><span class="chip">Planned: tempo</span><span class="chip">Decoupling 3.1%</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Up and running in minutes</h2>
+    <p class="sub">You need a Garmin Connect Personal API key from Garmin Connect (web) under
+      <b>Settings → Personal API Key</b>.</p>
+    <div class="install">
+      <div class="card">
+        <h3>Home Assistant</h3>
+        <ol>
+          <li>Settings → Apps → App store → ⋮ → Repositories</li>
+          <li>Add <code>https://github.com/BenjenJones/peakform</code></li>
+          <li>Install <b>PeakForm for Garmin</b> and start it</li>
+          <li>Open <b>PeakForm</b> in the sidebar, paste your key under <b>Account</b></li>
+        </ol>
+        <a class="btn primary" href="https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FBenjenJones%2Fpeakform">Add repository to Home Assistant</a>
+      </div>
+      <div class="card">
+        <h3>Docker</h3>
+        <pre><span class="c"># clone and start</span>
+git clone https://github.com/BenjenJones/peakform
+cd peakform
+openssl rand -base64 32 &gt; master_key.txt
+docker compose up -d --build
+<span class="c"># open http://localhost:8099</span></pre>
+        <p style="margin:0 0 18px;color:var(--ink-2);font-size:15px">Put it behind a TLS reverse proxy before you expose it to the internet.</p>
+        <a class="btn" href="https://github.com/BenjenJones/peakform#standalone-docker">Docker guide</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="alt" id="security">
+  <div class="wrap">
+    <h2>Your data, your server.</h2>
+    <p class="sub">No cloud service in between: PeakForm talks only to Garmin and, if you enable reviews, to Anthropic or OpenAI.</p>
+    <div class="sec">
+      <div><b>Encrypted API keys</b><span>AES-256-GCM with a master key kept outside the database, bound to each user.</span></div>
+      <div><b>Strong passwords</b><span>Argon2id hashing, rate-limited sign-in, sessions stored only as hashes.</span></div>
+      <div><b>Home Assistant sign-in</b><span>In HA, the app accepts requests only from the Supervisor ingress proxy.</span></div>
+      <div><b>Delete means delete</b><span>Removing an account removes its key and all synced data.</span></div>
+    </div>
+    <p style="margin-top:20px;font-size:15px"><a href="https://github.com/BenjenJones/peakform#security-model">Read the full security model →</a></p>
+  </div>
+</section>
+
+<section lang="de">
+  <div class="wrap">
+    <h2>Auf Deutsch</h2>
+    <p class="sub" style="margin-bottom:16px"><b>PeakForm for Garmin</b> macht aus deinen Garmin-Daten einen täglichen Readiness-Score,
+      Trainingsbelastung (Fitness, Ermüdung, Form), HRV-, Schlaf- und Stresstrends und eine detaillierte Auswertung
+      jeder Aktivität aus der Original-FIT-Datei, mit Karte, Runden und Leistungskurven.</p>
+    <p class="sub" style="margin-bottom:0">Alles läuft auf deinem eigenen Server, als Home-Assistant-App oder Docker-Container.
+      Du brauchst nur deinen persönlichen API-Schlüssel aus Garmin Connect. Optional bewerten Claude oder GPT deine Einheiten,
+      mit deinem eigenen API-Schlüssel von Anthropic oder OpenAI.</p>
+  </div>
+</section>
+
+<section class="alt" id="faq">
+  <div class="wrap">
+    <h2>FAQ</h2>
+    <details><summary>What do I need?</summary><p>A Garmin Connect account and a Personal API key, created in Garmin Connect (web) under Settings → Personal API Key. Plus Home Assistant or any machine that runs Docker.</p></details>
+    <details><summary>Where is my data stored?</summary><p>In a single SQLite file on your server. PeakForm talks only to Garmin and, if you turn on reviews, to Anthropic or OpenAI.</p></details>
+    <details><summary>Do activity reviews need a Claude or ChatGPT subscription?</summary><p>No, they use an API key with credit, from the Claude Console (Anthropic) or the OpenAI platform, a few cents per review. A Claude Pro/Max or ChatGPT Plus/Pro subscription cannot be used for this. Reviews are optional.</p></details>
+    <details><summary>Can I move from Home Assistant to Docker later?</summary><p>Yes. Take the database from a backup of the app and start the Docker container with it. <a href="https://github.com/BenjenJones/peakform#moving-from-home-assistant-to-docker">The README has the steps.</a></p></details>
+    <details><summary>Is it free?</summary><p>Yes, open source under the MIT license.</p></details>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <h2>Train smarter with the data you already have.</h2>
+    <p class="sub" style="margin:0 auto 28px">Free and open source under the MIT license.</p>
+    <div class="ctas">
+      <a class="btn primary" href="#install">Install PeakForm</a>
+      <a class="btn" href="https://github.com/BenjenJones/peakform/blob/main/CHANGELOG.md">What's new</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>PeakForm is an independent project. It is not affiliated with, endorsed by or sponsored by Garmin Ltd.
+      or its subsidiaries. Garmin and Garmin Connect are trademarks of Garmin Ltd. or its subsidiaries.</p>
+    <p><a href="https://github.com/BenjenJones/peakform">GitHub</a> · <a href="https://github.com/BenjenJones/peakform/blob/main/LICENSE">MIT License</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
