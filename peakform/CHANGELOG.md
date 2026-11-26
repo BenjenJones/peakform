@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.18.1 – More realistic VO2max
+
+### Fixed
+
+- **The estimated VO2max read too high after easy runs** (e.g. 47 where the watch shows 42).
+  Extrapolating from a relaxed pace overshoots, so a block of easy runs also showed as fitness
+  gained. Each estimate is now corrected to the same intensity, learnt from how strongly your own
+  estimates of the last year depend on it. The training status follows: easy blocks no longer
+  count as productive on their own.
+
 ## 0.18.0 – Training status
 
 ### Added
