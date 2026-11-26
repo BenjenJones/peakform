@@ -33,6 +33,7 @@ import { db, kvGet, kvSet } from "./db.js";
 import { exchangeApiKey, forgetToken, GarminApiError } from "./garmin/client.js";
 import { feelingMap, getFeedback, parseFeedback, setFeedback } from "./feedback.js";
 import { dayHeartRate, night } from "./night.js";
+import { trainingStatus } from "./trainingStatus.js";
 import { CURATED, metricSeries, resolveCurated } from "./normalize.js";
 import {
   aiKeyInfo,
@@ -348,6 +349,10 @@ api.get("/series", (c) => {
 });
 
 api.get("/load", (c) => c.json(trainingLoad(c.get("user").id, c.req.query("from") ?? daysAgo(180), c.req.query("to") ?? today())));
+
+api.get("/training-status", (c) =>
+  c.json(trainingStatus(c.get("user").id, c.req.query("from") ?? daysAgo(90), c.req.query("to") ?? today())),
+);
 
 api.get("/readiness", (c) => c.json(readiness(c.get("user").id, c.req.query("date") ?? today())));
 

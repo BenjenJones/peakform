@@ -122,6 +122,27 @@ export interface BodyRef {
 /** `provider` is missing on notices stored before 0.17, which all came from Anthropic. */
 export interface ReviewNotice { code: "quota" | "auth"; provider?: ReviewProvider; message: string; at: string; activityId: number }
 
+export type TrainingStatusKey =
+  | "peaking" | "productive" | "maintaining" | "strained" | "unproductive" | "overreaching" | "recovery" | "detraining" | "none";
+export type HrvStatus = "balanced" | "unbalanced_high" | "unbalanced_low" | "low";
+
+/** See server/trainingStatus.ts. */
+export interface StatusDay {
+  date: string;
+  status: TrainingStatusKey;
+  acwr: number | null;
+  tsb: number;
+  ctl: number;
+  ctlChange: number | null;
+  vo2max: number | null;
+  vo2Sport: "run" | "ride" | null;
+  vo2Change: number | null;
+  fitness: "up" | "flat" | "down" | null;
+  hrv: HrvStatus | null;
+  rhrHigh: boolean | null;
+  sleepPoor: boolean | null;
+}
+
 export interface Readiness {
   score: number | null;
   parts: { key: string; today: number; baseline: number; z: number }[];

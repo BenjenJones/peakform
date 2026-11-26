@@ -1,12 +1,13 @@
 import { createContext, type ReactNode, type TouchEvent, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { PageProps } from "../App";
-import { type BodyRef, type DayData, type DayHr, type DayMetric, fmtDuration, type Night, type Point, useApi } from "../api";
+import { type BodyRef, type DayData, type DayHr, type DayMetric, fmtDuration, type Night, type Point, type StatusDay, useApi } from "../api";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDate, fmtDayShort, fmtNum, type Key, type T, useI18n } from "../i18n";
 import { type MetricKey, MetricIcon } from "../icons";
 import { prefGet, prefSet } from "../prefs";
 import { ACWR, BB_HIGH, BMI, fixed, goal, type Judge, judge, personal, SLEEP_SCORE, SLEEP_STRESS, SPO2, TONE_COLOR, TSB } from "../status";
 import { Ring, TileViz, type Viz } from "../TileViz";
+import { TrainingStatusCard } from "../TrainingStatus";
 import { CardTitle, Dialog, Info } from "../ui";
 import { weightRefs, weightRefText } from "../weightRef";
 import { type MetricSource, type RefLine, tap, useMetricZoom, useZoom, ZoomCtx } from "../Zoom";
@@ -512,6 +513,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
   const today = localToday();
   const date = picked && /^\d{4}-\d{2}-\d{2}$/.test(picked) ? picked : today;
   const { data: d, error } = useApi<DayData>(`day?date=${date}`, [refreshKey]);
+  const { data: status } = useApi<StatusDay[]>(`training-status?from=${shift(date, -27)}&to=${date}`, [refreshKey]);
   const { data: ref } = useApi<BodyRef>("body-ref", [refreshKey]);
   const zoom = useMetricZoom(date);
   const swipe = useDaySwipe(
@@ -823,6 +825,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
           <>
             {readinessCard}
             {findingsCard}
+            <TrainingStatusCard days={status} detailed={false} />
 
             <div className="card span-4">
               <CardTitle icon="hr" title={t("day.hr")} help="help.rhr" />
@@ -926,6 +929,7 @@ export function Day({ refreshKey, date: picked }: PageProps & { date: string | n
 
             {readinessCard}
             {findingsCard}
+            <TrainingStatusCard days={status} />
 
             <div className="card">
               <CardTitle icon="hr" title={t("day.hr")} sub={t("day.hrSub")} help="help.rhr" />

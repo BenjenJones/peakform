@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { PageProps } from "../App";
-import { type ActivityLite, daysAgo, fmtCurveDuration, fmtPace, type LoadDay, useApi } from "../api";
+import { type ActivityLite, daysAgo, fmtCurveDuration, fmtPace, type LoadDay, type StatusDay, useApi } from "../api";
+import { TrainingStatusCard } from "../TrainingStatus";
 import { base, Chart, line, type Tokens } from "../Chart";
 import { dateAxisPointer, fmtDayShort, fmtNum, useI18n } from "../i18n";
 import { CardTitle } from "../ui";
@@ -19,6 +20,7 @@ export function Training({ range, refreshKey }: PageProps) {
   const from = daysAgo(range);
   const { data: load } = useApi<LoadDay[]>(`load?from=${from}`, [refreshKey]);
   const { data: acts } = useApi<ActivityLite[]>(`activities?from=${from}`, [refreshKey]);
+  const { data: status } = useApi<StatusDay[]>(`training-status?from=${from}`, [refreshKey]);
   const [field, setField] = useState<CurveField>("power");
   const [type, setType] = useState("");
   const { data: curve } = useApi<CurvePoint[]>(`curve?field=${field}&from=${from}${type ? `&type=${type}` : ""}`, [refreshKey]);
@@ -127,6 +129,7 @@ export function Training({ range, refreshKey }: PageProps) {
 
   return (
     <div className="grid">
+      <TrainingStatusCard days={status} />
       <div className="card">
         <CardTitle icon="load" title={tr("training.load")} sub={tr("training.loadSub")} help="help.load" />
         <Chart option={loadOpt} expand={tr("training.load")} icon="load" height={260} />

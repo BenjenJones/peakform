@@ -35,7 +35,7 @@ flowchart LR
     direction TB
     sync["Sync<br/>sync.ts · garmin/client.ts · fit.ts<br/>hourly, one user at a time"]
     db[("SQLite · garmin.sqlite<br/>raw_range, rebuilt into daily_metric<br/>activity · activity_stream · user_kv")]
-    ana["Analytics<br/>analytics.ts · compare.ts · night.ts<br/>review.ts: AI review via Claude"]
+    ana["Analytics<br/>analytics.ts · trainingStatus.ts · compare.ts · night.ts<br/>review.ts: AI review via Claude"]
     api["Hono server<br/>index.ts · auth.ts · /api/*<br/>also serves the built SPA"]
     sync -->|raw payloads, streams| db
     db -->|reads| ana
@@ -70,6 +70,7 @@ The server is about 4,000 lines of TypeScript in `server/`, with no framework be
 | Storage | `db.ts` | Open SQLite, create the schema, per-user key-value store, transactions |
 | Storage | `codec.ts` | Compact storage: Brotli for JSON, delta encoding for streams |
 | Analytics | `analytics.ts` | Training load, mean-max curves, decoupling, heart rate limits, correlations, readiness |
+| Analytics | `trainingStatus.ts` | Garmin-style training status from load, estimated VO2max trend and recovery signals |
 | Analytics | `compare.ts` | Two activities on the same route on one distance axis |
 | Analytics | `body.ts` | Reference weights (Broca) for the weight charts |
 | Analytics | `review.ts`, `feedback.ts` | AI review via Claude, the athlete's own rating as prompt input |
@@ -136,6 +137,7 @@ All analytics are computed per request from the database, not stored in advance.
 | --- | --- | --- |
 | Training load | `analytics.ts` | Fitness (CTL) as a 42-day EWMA, fatigue (ATL) as a 7-day EWMA, form (TSB) = yesterday's CTL − ATL, ACWR = ATL / CTL. Load per activity from Garmin, otherwise Banister TRIMP. 120 days of warm-up. |
 | Readiness | `analytics.ts` | HRV, resting heart rate, sleep score and form as z-scores against the user's own last 60 days, averaged and mapped to 0–100. Own model, not Garmin's. |
+| Training status | `trainingStatus.ts` | Per day: ACWR (3-day mean), VO2max estimate (ACSM oxygen cost of grade-adjusted pace or power per kg, divided by the share of heart rate reserve; median of 28 days, sport with more efforts), HRV status from the 7-day average against Garmin's baseline ranges, resting HR (3 days vs 60) and sleep score (3 nights). Rules map these to peaking … detraining; a new state needs 2 days, warnings show at once. Own model, not Garmin's. |
 | Mean-max curves | `analytics.ts` | Best average power, speed or heart rate for 5 s to 2 h, resampled to 1 Hz |
 | Aerobic decoupling | `analytics.ts` | Drift of heart rate against pace or power over a rolling window of moving time |
 | Heart rate limits | `analytics.ts` | Upper limit per sport, fixed in bpm or as a share of heart rate reserve (Karvonen) with averaged resting heart rate |
